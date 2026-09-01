@@ -4,7 +4,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial;background:#020817;color:#fff}nav{padding:12px;background:#081120;border-bottom:1px solid #1e293b;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:9}button,input,select{background:#0f172a;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px}button{cursor:pointer}.primary{background:#2563eb}.danger{background:#7f1d1d;border-color:#991b1b;color:#fff}main{max-width:1800px;margin:auto;padding:22px}.page{display:none}.page.active{display:block}.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.metric .label{color:#94a3b8;font-size:13px}.metric .value{font-size:30px;font-weight:800;margin-top:8px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:5px;color:#cbd5e1;font-size:12px}.tablewrap{overflow:auto;max-height:65vh;border:1px solid #1e293b;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1100px}th,td{padding:11px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#0b1324}.num{text-align:right}.sub{color:#94a3b8}.rank{display:grid;grid-template-columns:45px 1fr 110px 100px;padding:11px;border-bottom:1px solid #1e293b;gap:8px}.ok{color:#4ade80}.warn{color:#facc15}.bad{color:#f87171}#drop,#wmsDrop{padding:32px;text-align:center;border:2px dashed #334155;border-radius:18px}#drop.drag,#wmsDrop.drag{border-color:#38bdf8;background:#0b1b32}.pill{background:#1e293b;padding:6px 10px;border-radius:99px}
 </style></head><body><nav>
-<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button>
+<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('reconciliation')">Pick vs Pack Reconciliation</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button>
 </nav><main><h1>Billini Pick / Pack Performance</h1><div class="sub">Firebase-backed • incremental store-file history • no authentication code included yet</div><div class="sub ok" style="margin-top:6px">Firebase Optimised • events/jobs/gaps/WMS stored in 250-row chunks • no per-transaction writes • no automatic repair scan</div>
 <section id="dashboard" class="page active"><div class="card toolbar">
 <label>Start Date<input type="date" id="dashStartDate"></label>
@@ -20,6 +20,40 @@
 </div><div id="dailyMetrics" class="grid"></div><div class="card"><h2>Daily Individual Result</h2><div class="tablewrap"><table id="dailyTable"></table></div></div><div class="grid"><div class="card"><h2>Daily Pick Ranking</h2><div id="dailyPick"></div></div><div class="card"><h2>Daily Pack Ranking</h2><div id="dailyPack"></div></div></div></section>
 <section id="jobs" class="page"><div class="card"><h2>Jobs / Orders — Multi-user attribution</h2><div class="sub">A job can have multiple Pickers and/or Packers. Units are credited only to the person who performed the individual transaction.</div></div>
 <div class="card toolbar"><label>Start Date<input type="date" id="jobsStartDate"></label><label>End Date<input type="date" id="jobsEndDate"></label><label>Store<select id="jobsStore"><option value="">All Stores</option></select></label><button class="primary" onclick="jobsPage()">Load Range</button></div><div class="card"><div class="tablewrap"><table id="jobsTable"></table></div></div></section>
+<section id="reconciliation" class="page">
+<div class="card toolbar">
+  <label>Start Date<input type="date" id="reconStartDate"></label>
+  <label>End Date<input type="date" id="reconEndDate"></label>
+  <label>Store<select id="reconStore"><option value="">All Stores</option></select></label>
+  <button class="primary" onclick="reconciliationPage()">Refresh Reconciliation</button>
+</div>
+
+<div class="card">
+  <h2>Pick vs Pack Reconciliation</h2>
+  <div class="sub">
+    This page compares Pick and Pack units at the individual job/order level.
+    Pick and Pack remain separate activities. If multiple people worked on the same
+    job, their units are combined for that job before the comparison is made.
+  </div>
+</div>
+
+<div id="reconMetrics" class="grid"></div>
+
+<div class="card">
+  <h2>What the difference means</h2>
+  <div id="reconSummary"></div>
+</div>
+
+<div class="card">
+  <h2>Orders / Jobs with a Pick vs Pack Difference</h2>
+  <div class="sub">
+    Positive difference = more Pack units than Pick units recorded for the job.
+    Negative difference = more Pick units than Pack units recorded.
+    Zero = Pick and Pack quantities match.
+  </div>
+  <div class="tablewrap"><table id="reconTable"></table></div>
+</div>
+</section>
 <section id="gaps" class="page"><div class="card toolbar"><label>Start Date<input type="date" id="gapsStartDate"></label><label>End Date<input type="date" id="gapsEndDate"></label><label>Threshold<select id="threshold"><option value="10">Greater than 10 min</option><option value="20">Greater than 20 min</option></select></label><button class="primary" onclick="gapsPage()">Load Range</button></div><div class="card"><div class="tablewrap"><table id="gapsTable"></table></div></div></section>
 <section id="wms" class="page">
 <div class="card toolbar">
@@ -534,6 +568,121 @@ async function saveSnapshot(){
  await db.collection(C.snapshots).doc(start+'__'+end).set({startDate:start,endDate:end,dateRange:days,createdAt:firebase.firestore.FieldValue.serverTimestamp(),stores:[...new Set(js.map(x=>x.store))],people:r,wmsTransactions:w.length,wmsPickUnits:w.filter(x=>x.type==='Pick').reduce((a,x)=>a+Math.abs(x.quantity||0),0),otherWmsTransactions:w.filter(x=>x.type!=='Pick').length});
  alert('Snapshot saved: '+start+' to '+end)
 }
+async function reconciliationPage(){
+  const start=$('reconStartDate').value,end=$('reconEndDate').value,store=$('reconStore').value;
+  if(!start||!end)return;
+  if(end<start){alert('End Date cannot be before Start Date.');return;}
+
+  try{
+    const days=dateRangeDays(start,end);
+    if(days.length>30){alert('Please select a range of 30 days or less.');return;}
+
+    const jobs=(await Promise.all(days.map(d=>jobsFor(d,store)))).flat();
+
+    // Deduplicate jobs because the stored chunks can be returned by both
+    // the date-array index and the legacy date index.
+    const seen=new Set();
+    const uniqueJobs=jobs.filter(j=>{
+      const key=[j.store||'',j.jobNo||'',j.fileId||'',j.date||''].join('|');
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    });
+
+    const rows=uniqueJobs.map(j=>{
+      const pick=Number(j.pickUnits)||0;
+      const pack=Number(j.packUnits)||0;
+      return {
+        ...j,
+        pickUnits:pick,
+        packUnits:pack,
+        difference:pack-pick,
+        status:pack===pick?'Matched':pack>pick?'Pack > Pick':'Pick > Pack'
+      };
+    });
+
+    const pickTotal=rows.reduce((a,x)=>a+x.pickUnits,0);
+    const packTotal=rows.reduce((a,x)=>a+x.packUnits,0);
+    const difference=packTotal-pickTotal;
+    const matched=rows.filter(x=>x.difference===0).length;
+    const mismatched=rows.filter(x=>x.difference!==0).length;
+    const packHigher=rows.filter(x=>x.difference>0);
+    const pickHigher=rows.filter(x=>x.difference<0);
+
+    $('reconMetrics').innerHTML=[
+      ['Jobs / Orders',n(rows.length)],
+      ['Pick Units',n(pickTotal)],
+      ['Pack Units',n(packTotal)],
+      ['Unit Difference',`${difference>0?'+':''}${n(difference)}`],
+      ['Matched Jobs',n(matched)],
+      ['Jobs with Difference',n(mismatched)],
+      ['Pack > Pick Jobs',n(packHigher.length)],
+      ['Pick > Pack Jobs',n(pickHigher.length)]
+    ].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
+
+    let summary='';
+    if(!rows.length){
+      summary='<div class="sub">No jobs found for the selected period.</div>';
+    }else if(difference===0){
+      summary=`<p><b>Pick and Pack reconcile exactly.</b> Both activities total <b>${n(pickTotal)} units</b> across <b>${n(rows.length)} jobs</b>.</p>`;
+    }else{
+      const direction=difference>0?'Pack is higher than Pick':'Pick is higher than Pack';
+      summary=
+        `<p><b>${esc(direction)} by ${n(Math.abs(difference))} units.</b></p>`+
+        `<p>${n(matched)} of ${n(rows.length)} jobs (${rows.length?Math.round(matched/rows.length*100):0}%) match exactly. `+
+        `<b>${n(mismatched)} jobs</b> have a quantity difference and are listed below.</p>`+
+        `<p class="sub">The difference is calculated from the stored Store Job History Pick and Pack transactions only. ULD Actions Log Pick transactions are not included in these totals.</p>`;
+    }
+    $('reconSummary').innerHTML=summary;
+
+    const sorted=rows.filter(x=>x.difference!==0).sort((a,b)=>{
+      return Math.abs(b.difference)-Math.abs(a.difference);
+    });
+
+    $('reconTable').innerHTML=
+      '<thead><tr>'+
+      '<th>Date</th><th>Store</th><th>Job / Order</th>'+
+      '<th>Pick Users</th><th>Pack Users</th>'+
+      '<th>Pick Units</th><th>Pack Units</th><th>Difference</th><th>Status</th>'+
+      '<th>Pick Contribution Detail</th><th>Pack Contribution Detail</th><th>Completed</th>'+
+      '</tr></thead><tbody>'+
+      sorted.map(x=>{
+        const pickDetail=Object.entries(x.pickMetrics||{}).map(([u,m])=>
+          `<b>${esc(u)}</b>: ${n(m.units)} units`
+        ).join('<br>')||'—';
+        const packDetail=Object.entries(x.packMetrics||{}).map(([u,m])=>
+          `<b>${esc(u)}</b>: ${n(m.units)} units`
+        ).join('<br>')||'—';
+        const cls=x.difference>0?'warn':'bad';
+        const completed=x.complete?.toDate?x.complete.toDate().toLocaleTimeString():'';
+        return `<tr>
+          <td>${esc(x.date||'')}</td>
+          <td>${esc(x.store||'')}</td>
+          <td><b>${esc(x.jobNo||'')}</b></td>
+          <td>${esc((x.pickContributors||[]).join(', ')||'—')}</td>
+          <td>${esc((x.packContributors||[]).join(', ')||'—')}</td>
+          <td class="num">${n(x.pickUnits)}</td>
+          <td class="num">${n(x.packUnits)}</td>
+          <td class="num ${cls}">${x.difference>0?'+':''}${n(x.difference)}</td>
+          <td>${esc(x.status)}</td>
+          <td style="white-space:normal">${pickDetail}</td>
+          <td style="white-space:normal">${packDetail}</td>
+          <td>${esc(completed)}</td>
+        </tr>`;
+      }).join('')+
+      '</tbody>';
+
+    if(!sorted.length){
+      $('reconTable').innerHTML=
+        '<thead><tr><th>Result</th></tr></thead>'+
+        '<tbody><tr><td class="ok"><b>All jobs reconcile.</b> No Pick vs Pack unit differences were found for the selected period.</td></tr></tbody>';
+    }
+  }catch(e){
+    console.error('Pick vs Pack reconciliation failed',e);
+    alert('Pick vs Pack reconciliation failed: '+e.message);
+  }
+}
+
 async function jobsPage(){
  const start=$('jobsStartDate').value,end=$('jobsEndDate').value;
  if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
@@ -562,11 +711,11 @@ async function init(){
   let daySnap=[];
   try{daySnap=(await db.collection(C.jobs).orderBy('date','desc').limit(100).get()).docs.map(d=>d.data().date).filter(Boolean)}catch(e){console.warn('Date index fallback failed',e)}
   const ds=[...new Set(daySnap)].sort().reverse();
-  $('dashDate').innerHTML=ds.map(d=>`<option>${d}</option>`).join('');
+  // No legacy dashDate selector in this version.
   const defaultDay=ds[0]||dk(new Date());
-   ['dashStartDate','dashEndDate','dailyStartDate','dailyEndDate','jobsStartDate','jobsEndDate','gapsStartDate','gapsEndDate'].forEach(id=>{if(!$(id).value)$(id).value=defaultDay});
+   ['dashStartDate','dashEndDate','dailyStartDate','dailyEndDate','jobsStartDate','jobsEndDate','gapsStartDate','gapsEndDate','reconStartDate','reconEndDate'].forEach(id=>{if(!$(id).value)$(id).value=defaultDay});
   $('dashStore').innerHTML='<option value="">All Stores</option>'+stores.sort().map(x=>`<option>${esc(x)}</option>`).join('');
-  $('jobsStore').innerHTML=$('dashStore').innerHTML;
+  $('jobsStore').innerHTML=$('dashStore').innerHTML;$('reconStore').innerHTML=$('dashStore').innerHTML;
   if(ds.length)await dashboard();
  }catch(e){console.error('Initial Firebase load failed:',e)}
 }
