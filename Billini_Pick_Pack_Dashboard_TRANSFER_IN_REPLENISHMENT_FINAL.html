@@ -1,0 +1,450 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Billini Pick / Pack Performance</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#020817;color:#fff}nav{padding:12px;background:#081120;border-bottom:1px solid #1e293b;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:9}button,input,select{background:#0f172a;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px}button{cursor:pointer}.primary{background:#2563eb}.danger{background:#7f1d1d;border-color:#991b1b;color:#fff}main{max-width:1800px;margin:auto;padding:22px}.page{display:none}.page.active{display:block}.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.metric .label{color:#94a3b8;font-size:13px}.metric .value{font-size:30px;font-weight:800;margin-top:8px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:5px;color:#cbd5e1;font-size:12px}.tablewrap{overflow:auto;max-height:65vh;border:1px solid #1e293b;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1100px}th,td{padding:11px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#0b1324}.num{text-align:right}.sub{color:#94a3b8}.rank{display:grid;grid-template-columns:45px 1fr 110px 100px;padding:11px;border-bottom:1px solid #1e293b;gap:8px}.ok{color:#4ade80}.warn{color:#facc15}.bad{color:#f87171}#drop,#wmsDrop{padding:32px;text-align:center;border:2px dashed #334155;border-radius:18px}#drop.drag,#wmsDrop.drag{border-color:#38bdf8;background:#0b1b32}.pill{background:#1e293b;padding:6px 10px;border-radius:99px}
+</style></head><body><nav>
+<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button>
+</nav><main><h1>Billini Pick / Pack Performance</h1><div class="sub">Firebase-backed • incremental store-file history • no authentication code included yet</div><div class="sub ok" style="margin-top:6px">Firebase Optimised • events/jobs/gaps/WMS stored in 250-row chunks • no per-transaction writes • no automatic repair scan</div>
+<section id="dashboard" class="page active"><div class="card toolbar"><label>Date<select id="dashDate"></select></label><label>Store<select id="dashStore"><option value="">All Stores</option></select></label><button class="primary" onclick="dashboard()">Refresh</button></div><div id="metrics" class="grid"></div><div class="grid"><div class="card"><h2>Pick Ranking</h2><div id="pickRank"></div></div><div class="card"><h2>Pack Ranking</h2><div id="packRank"></div></div></div><div class="card"><h2>Individual Performance</h2><div class="sub">Individual units and rates come from that person's own Pick/Pack transactions. A multi-user order is never credited entirely to one person.</div><div class="tablewrap"><table id="peopleTable"></table></div></div></section>
+<section id="daily" class="page"><div class="card toolbar"><label>Snapshot Day<input type="date" id="dailyDate"></label><button class="primary" onclick="daily()">Show Day</button><button onclick="saveSnapshot()">Save Snapshot to Firebase</button></div><div id="dailyMetrics" class="grid"></div><div class="card"><h2>Daily Individual Result</h2><div class="tablewrap"><table id="dailyTable"></table></div></div><div class="grid"><div class="card"><h2>Daily Pick Ranking</h2><div id="dailyPick"></div></div><div class="card"><h2>Daily Pack Ranking</h2><div id="dailyPack"></div></div></div></section>
+<section id="jobs" class="page"><div class="card"><h2>Jobs / Orders — Multi-user attribution</h2><div class="sub">A job can have multiple Pickers and/or Packers. Units are credited only to the person who performed the individual transaction.</div></div><div class="card toolbar"><label>Date<input type="date" id="jobsDate"></label><label>Store<select id="jobsStore"><option value="">All Stores</option></select></label><button class="primary" onclick="jobsPage()">Load</button></div><div class="card"><div class="tablewrap"><table id="jobsTable"></table></div></div></section>
+<section id="gaps" class="page"><div class="card toolbar"><label>Date<input type="date" id="gapsDate"></label><label>Threshold<select id="threshold"><option value="10">Greater than 10 min</option><option value="20">Greater than 20 min</option></select></label><button class="primary" onclick="gapsPage()">Load</button></div><div class="card"><div class="tablewrap"><table id="gapsTable"></table></div></div></section>
+<section id="wms" class="page">
+<div class="card toolbar">
+  <label>Date<input type="date" id="wmsDate"></label>
+  <label>User<select id="wmsUser"><option value="">All Users</option></select></label>
+  <label>Transaction Type<select id="wmsType"><option value="">All Types</option></select></label>
+  <button class="primary" onclick="wmsPage()">Refresh Daily Activity</button>
+</div>
+
+<div class="card">
+  <h2>Warehouse Daily Activity &amp; Stock Accuracy</h2>
+  <div class="sub">Daily WMS / ULD activity report — structured to mirror the daily warehouse email.</div>
+</div>
+
+<div id="wmsOverview" class="grid"></div>
+
+<div class="grid">
+  <div class="card"><h2>Receiving</h2><div id="wmsReceiving"></div></div>
+  <div class="card"><h2>Picking</h2><div id="wmsPicking"></div></div>
+</div>
+
+<div class="card">
+  <h2>Replenishment</h2>
+  <div id="wmsReplenishment"></div>
+</div>
+
+<div class="grid">
+  <div class="card"><h2>Verification / Stock Accuracy</h2><div id="wmsVerification"></div></div>
+  <div class="card"><h2>Stock Adjustments</h2><div id="wmsAdjustments"></div></div>
+</div>
+
+<div class="card">
+  <h2>No Location Activity</h2>
+  <div id="wmsNoLocation"></div>
+</div>
+
+<div class="card">
+  <h2>ULD Activity</h2>
+  <div id="wmsUldActivity"></div>
+</div>
+
+<div class="card">
+  <h2>Key Points / Follow-Up</h2>
+  <div id="wmsKeyPoints"></div>
+</div>
+
+<div class="card">
+  <h2>Transaction Detail</h2>
+  <div class="sub">Full underlying WMS / ULD transactions for the selected day.</div>
+  <div class="tablewrap"><table id="wmsTable"></table></div>
+</div>
+</section><section id="imports" class="page"><div class="card"><h2>Import Store Job History Files</h2><div class="sub">Every Monday and Tuesday batch can be added here. Duplicate file content is skipped automatically.</div><div id="drop">Drop XLSX files here or <button class="primary" onclick="fileInput.click()">Choose Files</button><input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></div><div class="toolbar" style="margin-top:12px"><button class="primary" onclick="importFiles()">Import Selected Files</button><button class="danger" onclick="clearPickPackData()">Clear All Pick/Pack Data</button><span id="status" class="pill">Ready</span></div></div><div class="card"><h2>Import WMS / ULD Actions Log</h2><div class="sub">Import the "Stock Reporting - ULD Actions Log" XLSX files alongside the store Job History files. These records are linked by date and user to give the full warehouse picture.</div><div id="wmsDrop" class="drop">Drop ULD Actions XLSX here or <button class="primary" onclick="wmsFileInput.click()">Choose Files</button><input id="wmsFileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></div><div class="toolbar" style="margin-top:12px"><button class="primary" onclick="importWmsFiles()">Import WMS / ULD Files</button><span id="wmsStatus" class="pill">Ready</span></div></div><div class="card"><h2>Import History</h2><div class="tablewrap"><table id="importTable"></table></div></div></section>
+<section id="people" class="page"><div class="card"><h2>People / Roles</h2><div id="roles"></div></div></section>
+</main><script>
+const firebaseConfig = {
+apiKey: "AIzaSyD9nPDHQpkPgxeQYfe-JVWemQg6CjbCBYM",
+authDomain: "seven-hills-dashboard-e973d.firebaseapp.com",
+projectId: "seven-hills-dashboard-e973d",
+storageBucket: "seven-hills-dashboard-e973d.firebasestorage.app",
+messagingSenderId: "1016653351453",
+appId: "1:1016653351453:web:a2a1f597844adf51ba54f4"
+};
+firebase.initializeApp(firebaseConfig);const db=firebase.firestore();
+const C={jobs:"pickPackJobs",events:"pickPackEvents",gaps:"pickPackGaps",imports:"pickPackImports",snapshots:"pickPackSnapshots",people:"pickPackPeople",wms:"pickPackWmsEvents",wmsImports:"pickPackWmsImports"};let selected=[],people={};
+const $=id=>document.getElementById(id);function page(id){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');if(id==='imports')importLog();if(id==='people')rolesPage();if(id==='wms')wmsInit()}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}function n(v){return Number(v||0).toLocaleString()}function minutes(x){if(x==null||!isFinite(x))return'—';let h=Math.floor(x/60),m=Math.round(x%60);return h?h+'h '+String(m).padStart(2,'0')+'m':m+'m'}function dk(d){let x=d instanceof Date?d:new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')}function rate(u,t){return t>0?u/t:null}
+function storeName(name){return name.replace(/\.[^.]+$/,'').replace(/^Shipping\s*-\s*Job Management\s*-\s*Job History\s*/i,'').trim()||'Unknown Store'}
+async function hash(buf){let h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function parse(file,buf){let wb=XLSX.read(buf,{type:'array'}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''}),h=rows.findIndex(r=>String(r[0]).trim().toLowerCase()==='action'&&String(r[1]).trim().toLowerCase()==='user');if(h<0)throw Error('Action/User header not found');return rows.slice(h+1).map(r=>{let d=String(r[3]||'');let m=d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/),dt=m?new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5],+m[6]):new Date(d);return {action:String(r[0]||'').trim(),user:String(r[1]||'').trim(),message:String(r[2]||'').trim(),timestamp:dt}}).filter(x=>x.action&&x.timestamp&&!isNaN(x.timestamp))}
+
+function parseWms(file,buf){
+ let wb=XLSX.read(buf,{type:'array'}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+ let h=rows.findIndex(r=>String(r[0]).trim().toLowerCase()==='timestamp'&&String(r[11]).trim().toLowerCase()==='user');
+ if(h<0)throw Error('ULD Actions Log header not found');
+ return rows.slice(h+1).map(r=>{let d=String(r[0]||''),m=d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/),dt=m?new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5],+m[6]):new Date(d);return {timestamp:dt,warehouse:String(r[1]||'').trim(),uld:String(r[2]||'').trim(),location:String(r[3]||'').trim(),itemCode:String(r[4]||'').trim(),itemName:String(r[5]||'').trim(),quantity:Number(r[6])||0,type:String(r[7]||'').trim(),reference:String(r[8]||'').trim(),referenceType:String(r[9]||'').trim(),comment:String(r[10]||'').trim(),user:String(r[11]||'').trim()}}).filter(x=>x.type&&x.timestamp&&!isNaN(x.timestamp));
+}
+async function importWmsFiles(){
+ if(!selectedWms.length){alert('Choose at least one ULD Actions Log file.');return}
+ let done=0,skipped=0,total=0,failed=0;
+ for(const f of selectedWms){
+  try{
+   $('wmsStatus').textContent=`Processing ${done+skipped+failed+1} / ${selectedWms.length}: ${f.name}`;
+   const buf=await f.arrayBuffer(),fingerprint=await hash(buf);
+   // One read per file only: duplicate check.
+   const dup=await db.collection(C.wmsImports).doc(fingerprint).get();
+   if(dup.exists){skipped++;continue}
+   const rows=parseWms(f,buf),ops=[];
+   // One Firestore document per 250 WMS rows, rather than one document per transaction.
+   for(let z=0;z<rows.length;z+=250){
+    const chunk=rows.slice(z,z+250).map(e=>({...e,timestamp:e.timestamp.toISOString(),date:dk(e.timestamp)}));
+    ops.push(b=>b.set(db.collection(C.wms).doc(fingerprint+'_chunk_'+Math.floor(z/250)),{fingerprint,fileName:f.name,chunkIndex:Math.floor(z/250),count:chunk.length,dates:[...new Set(chunk.map(x=>x.date))],events:chunk}));
+   }
+   ops.push(b=>b.set(db.collection(C.wmsImports).doc(fingerprint),{fingerprint,fileName:f.name,recordCount:rows.length,importedAt:firebase.firestore.FieldValue.serverTimestamp()}));
+   await commitChunks(ops);done++;total+=rows.length;
+  }catch(e){failed++;console.error('WMS import failed',e)}
+ }
+ selectedWms=[];$('wmsFileInput').value='';
+ $('wmsStatus').textContent=`Done • ${done} imported • ${skipped} duplicates • ${failed} failed • ${n(total)} records`;
+ await wmsPage();
+}
+let selectedWms=[];
+function setupWmsImport(){
+ const fi=$('wmsFileInput'),dr=$('wmsDrop'); if(!fi||!dr)return;
+ fi.onchange=e=>{selectedWms=[...e.target.files];$('wmsStatus').textContent=selectedWms.length+' WMS files selected'};
+ dr.ondragover=e=>{e.preventDefault();dr.classList.add('drag')};dr.ondragleave=()=>dr.classList.remove('drag');dr.ondrop=e=>{e.preventDefault();dr.classList.remove('drag');selectedWms=[...e.dataTransfer.files].filter(f=>/\.(xlsx|xls|csv)$/i.test(f.name));$('wmsStatus').textContent=selectedWms.length+' WMS files selected'};
+}
+async function wmsFor(day,user='',type=''){
+ const s=await db.collection(C.wms).where('dates','array-contains',day).get();
+ let out=[];
+ s.docs.forEach(d=>{
+  const x=d.data();
+  if(Array.isArray(x.events)) x.events.forEach(e=>{const r={...e,id:d.id};r.timestamp=new Date(r.timestamp);if((!user||r.user===user)&&(!type||r.type===type))out.push(r)});
+  else {const r={id:d.id,...x};r.timestamp=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp);if((!user||r.user===user)&&(!type||r.type===type))out.push(r)}
+ });
+ return out;
+}
+async function wmsInit(){
+ setupWmsImport();
+ if(!$('wmsDate').value)$('wmsDate').value=dk(new Date());
+ // Do not scan all historical WMS data on startup. Details are loaded only for the selected day.
+ try{await wmsPage()}catch(e){console.error('WMS init failed',e)}
+}
+function wmsTextList(title, rows, unitLabel='units', topN=12){
+  if(!rows.length) return '<div class="sub">No activity recorded.</div>';
+  return `<h3 style="margin-bottom:8px">${esc(title)}</h3><div>${rows.slice(0,topN).map(x=>`<div style="padding:7px 0;border-bottom:1px solid #1e293b"><b>${esc(x.name)}</b> — ${n(x.qty)} ${unitLabel}${x.styles!=null?` / ${n(x.styles)} styles`:''}</div>`).join('')}</div>`;
+}
+function wmsClassify(x){
+  const t=String(x.type||'').toLowerCase();
+  const c=String(x.comment||'').toLowerCase();
+  const ref=String(x.referenceType||'').toLowerCase();
+  const reference=String(x.reference||'').toLowerCase();
+  const uld=String(x.uld||'').toLowerCase();
+  const msg=t+' '+c+' '+ref+' '+reference+' '+uld;
+
+  // WMS Transfer In is the replenishment movement. Detect it from any
+  // transaction metadata field because different exports can place the
+  // activity label in different columns.
+  const isTransferIn=/\btransfer\s*[-_]?\s*in\b/.test(msg);
+
+  return {
+    receiving:/receiv|receipt|putaway/.test(msg),
+    picking:/pick/.test(t) && !/reversal|reverse/.test(msg),
+    replenishment:isTransferIn || /replen/.test(msg),
+    verification:/verif|count|stocktake|cycle/.test(msg),
+    adjustment:/adjust/.test(msg),
+    uldMove:/uld/.test(msg) && /mov|transfer/.test(msg),
+    uldPicking:/uld/.test(msg) && /pick/.test(msg),
+    uldBulk:/uld/.test(msg) && /bulk/.test(msg),
+    uldDestroy:/uld/.test(msg) && /destroy/.test(msg),
+    uldRelease:/uld/.test(msg) && /release/.test(msg) && /hold/.test(msg),
+    uldHold:/uld/.test(msg) && /hold/.test(msg) && !/release/.test(msg),
+    uldCreate:/uld/.test(msg) && /creat/.test(msg),
+    reversal:/reversal|reverse/.test(msg)
+  };
+}
+function wmsUserSummary(rows, quantity=true){
+  const m={};
+  rows.forEach(x=>{
+    const u=x.user||'Unknown';
+    m[u]??={name:u,qty:0,styles:new Set(),transactions:0};
+    m[u].transactions++;
+    if(quantity)m[u].qty+=Math.abs(Number(x.quantity)||0);
+    if(x.itemCode||x.itemName)m[u].styles.add(x.itemCode||x.itemName);
+  });
+  return Object.values(m).map(x=>({...x,styles:x.styles.size})).sort((a,b)=>b.qty-a.qty||b.transactions-a.transactions);
+}
+function wmsStyleSummary(rows){
+  const m={};
+  rows.forEach(x=>{
+    const s=x.itemName||x.itemCode||'Unknown';
+    m[s]??={name:s,qty:0};
+    m[s].qty+=Math.abs(Number(x.quantity)||0);
+  });
+  return Object.values(m).sort((a,b)=>b.qty-a.qty);
+}
+async function wmsPage(){
+  const day=$('wmsDate').value;
+  if(!day)return;
+  try{
+    const all=await wmsFor(day);
+    const user=$('wmsUser').value, type=$('wmsType').value;
+    const r=all.filter(x=>(!user||x.user===user)&&(!type||x.type===type));
+    const classified=r.map(x=>({...x,cat:wmsClassify(x)}));
+
+    const receiving=classified.filter(x=>x.cat.receiving);
+    const picking=classified.filter(x=>x.cat.picking);
+    const replen=classified.filter(x=>x.cat.replenishment);
+    const verification=classified.filter(x=>x.cat.verification);
+    const adjustments=classified.filter(x=>x.cat.adjustment);
+    const noLocation=r.filter(x=>String(x.location||'').trim()===''||/no location/i.test(String(x.location||'')));
+
+    const uldMove=classified.filter(x=>x.cat.uldMove);
+    const uldPicking=classified.filter(x=>x.cat.uldPicking);
+    const uldBulk=classified.filter(x=>x.cat.uldBulk);
+    const uldDestroy=classified.filter(x=>x.cat.uldDestroy);
+    const uldRelease=classified.filter(x=>x.cat.uldRelease);
+    const uldHold=classified.filter(x=>x.cat.uldHold);
+    const uldCreate=classified.filter(x=>x.cat.uldCreate);
+    const reversal=classified.filter(x=>x.cat.reversal);
+
+    const units=a=>a.reduce((s,x)=>s+Math.abs(Number(x.quantity)||0),0);
+    const styles=a=>new Set(a.map(x=>x.itemCode||x.itemName).filter(Boolean)).size;
+    const ulds=a=>new Set(a.map(x=>x.uld).filter(Boolean)).size;
+
+    const receiptUsers=wmsUserSummary(receiving);
+    const pickUsers=wmsUserSummary(picking);
+    const replUsers=wmsUserSummary(replen);
+    const verUsers=wmsUserSummary(verification,false);
+    const adjStyles=wmsStyleSummary(adjustments);
+    const pickStyles=wmsStyleSummary(picking);
+    const replStyles=wmsStyleSummary(replen);
+
+    const pickUnits=units(picking), replUnits=units(replen), gap=pickUnits-replUnits;
+    const coverage=pickUnits?Math.round((replUnits/pickUnits)*100):0;
+    const noLocUnits=units(noLocation);
+
+    $('wmsOverview').innerHTML=[
+      ['Units Received',`${n(units(receiving))} <small>across ${n(styles(receiving))} styles</small>`],
+      ['Units Picked',`${n(pickUnits)} <small>across ${n(styles(picking))} styles</small>`],
+      ['Units Replenished',`${n(replUnits)} <small>across ${n(styles(replen))} styles</small>`],
+      ['Verifications',`${n(verification.length)} <small>across ${n(styles(verification))} styles</small>`],
+      ['Stock Adjustments',n(adjustments.length)],
+      ['ULD Movements',n(uldMove.length)],
+      ['ULDs Picking',n(ulds(uldPicking))],
+      ['ULDs Bulk',n(ulds(uldBulk))],
+      ['ULDs Destroyed',n(ulds(uldDestroy))],
+      ['ULDs Released Hold',n(ulds(uldRelease))],
+      ['ULDs On Hold',n(ulds(uldHold))],
+      ['ULDs Created',n(ulds(uldCreate))],
+      ['Pick Reversals',n(reversal.length)]
+    ].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
+
+    $('wmsReceiving').innerHTML=
+      `<p>A total of <b>${n(units(receiving))} units were received across ${n(styles(receiving))} styles.</b></p>`+
+      wmsTextList('User breakdown',receiptUsers)+
+      wmsTextList('Largest receipts',wmsStyleSummary(receiving));
+
+    $('wmsPicking').innerHTML=
+      `<p>A total of <b>${n(pickUnits)} units were picked across ${n(styles(picking))} styles.</b></p>`+
+      wmsTextList('User breakdown',pickUsers)+
+      wmsTextList('Highest-volume individual picks',pickStyles);
+
+    $('wmsReplenishment').innerHTML=
+      `<p>A total of <b>${n(replUnits)} units were transferred in for replenishment across ${n(styles(replen))} styles</b>, compared with <b>${n(pickUnits)} units picked</b>.</p>`+
+      `<p><b>${n(Math.max(0,gap))}-unit gap</b> between picking and replenishment. Replenishment covered approximately <b>${coverage}%</b> of today's picking volume.</p>`+
+      wmsTextList('User breakdown',replUsers)+
+      `<div class="sub" style="margin-top:12px">The report highlights the relationship between picking demand and replenishment output so the daily replenishment deficit can be monitored consistently.</div>`;
+
+    $('wmsVerification').innerHTML=
+      `<p>There were <b>${n(verification.length)} verification transactions across ${n(styles(verification))} styles.</b></p>`+
+      wmsTextList('User breakdown',verUsers,'verifications');
+
+    const adjQty=adjustments.reduce((s,x)=>s+(Number(x.quantity)||0),0);
+    $('wmsAdjustments').innerHTML=
+      `<p>There were <b>${n(adjustments.length)} stock adjustments</b>, resulting in a <b>net ${adjQty>=0?'+':''}${n(adjQty)} units</b>.</p>`+
+      wmsTextList('Largest adjustment styles',adjStyles)+
+      `<div class="sub" style="margin-top:12px">Review adjustment comments and references below to distinguish genuine discrepancies from reactive corrections.</div>`;
+
+    $('wmsNoLocation').innerHTML=
+      `<p><b>${n(noLocUnits)} units</b> were recorded against No Location across <b>${n(noLocation.length)} transactions</b>.</p>`+
+      wmsTextList('Largest No Location items',wmsStyleSummary(noLocation));
+
+    const uldRows=[
+      ['ULDs moved',uldMove,'ULDs'],['Marked as Picking',uldPicking,'ULDs'],
+      ['Marked as Bulk',uldBulk,'ULDs'],['Destroyed',uldDestroy,'ULDs'],
+      ['Released from Hold',uldRelease,'ULDs'],['Placed on Hold',uldHold,'ULDs'],
+      ['Created',uldCreate,'ULDs']
+    ];
+    $('wmsUldActivity').innerHTML=
+      `<div class="grid">`+uldRows.map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${n(ulds(x[1]))}</div></div>`).join('')+`</div>`+
+      `<h3>User breakdown</h3>`+
+      `<div class="tablewrap"><table><thead><tr><th>User</th><th>ULDs Moved</th><th>Picking</th><th>Bulk</th></tr></thead><tbody>`+
+      [...new Set([...uldMove,...uldPicking,...uldBulk].map(x=>x.user).filter(Boolean))].map(u=>{
+        const a=t=>ulds(t.filter(x=>x.user===u));
+        return `<tr><td><b>${esc(u)}</b></td><td class="num">${n(a(uldMove))}</td><td class="num">${n(a(uldPicking))}</td><td class="num">${n(a(uldBulk))}</td></tr>`;
+      }).join('')+`</tbody></table></div>`;
+
+    const points=[];
+    if(replUnits<pickUnits) points.push(`<b>${n(pickUnits)} units picked</b> versus <b>${n(replUnits)} replenished</b>, leaving a <b>${n(gap)}-unit gap</b> (${coverage}% coverage).`);
+    if(noLocUnits) points.push(`<b>${n(noLocUnits)} units</b> were processed against No Location and should be monitored.`);
+    if(adjustments.length) points.push(`<b>${n(adjustments.length)} stock adjustments</b> were recorded; review the underlying references/comments.`);
+    if(verification.length) points.push(`<b>${n(verification.length)} verification transactions</b> were recorded across ${n(styles(verification))} styles.`);
+    if(uldMove.length||uldPicking.length||uldBulk.length) points.push(`<b>${n(uldMove.length)} ULD movement transactions</b> were recorded, alongside Picking/Bulk ULD activity.`);
+    if(reversal.length) points.push(`<b>${n(reversal.length)} pick reversal${reversal.length===1?'':'s'}</b> recorded.`);
+    $('wmsKeyPoints').innerHTML=points.length?'<ol>'+points.map(x=>`<li style="margin:8px 0">${x}</li>`).join('')+'</ol>':'<div class="sub">No key follow-up points for this day.</div>';
+
+    $('wmsTable').innerHTML='<thead><tr><th>Time</th><th>User</th><th>Transaction Type</th><th>Qty</th><th>Location</th><th>ULD</th><th>Item Code</th><th>Item Name</th><th>Reference</th><th>Reference Type</th><th>Comment</th></tr></thead><tbody>'+
+      r.sort((a,b)=>a.timestamp-b.timestamp).map(x=>`<tr><td>${x.timestamp.toLocaleTimeString()}</td><td><b>${esc(x.user)}</b></td><td>${esc(x.type)}</td><td class="num">${n(x.quantity)}</td><td>${esc(x.location)}</td><td>${esc(x.uld)}</td><td>${esc(x.itemCode)}</td><td>${esc(x.itemName)}</td><td>${esc(x.reference)}</td><td>${esc(x.referenceType)}</td><td style="white-space:normal">${esc(x.comment)}</td></tr>`).join('')+'</tbody>';
+  }catch(e){console.error('WMS daily activity failed',e);alert('WMS daily activity load failed: '+e.message)}
+}
+
+function makeJobs(store,file,rows){
+ rows=[...rows].sort((a,b)=>a.timestamp-b.timestamp); const out=[],byJob=new Map(); let currentJob=null,seq=0;
+ const valid=u=>u&&u!=="N/A"?u:"";
+ const ensure=(no,e)=>{if(!no)no="UNKNOWN-"+(++seq);let j=byJob.get(no);if(!j){j={jobNo:no,store,file,statusPickStart:null,packStart:null,complete:null,picks:[],packs:[]};byJob.set(no,j);out.push(j)}return j};
+ for(const e of rows){
+   const msg=e.message||"", opened=msg.match(/Opened\s+(\S+)\s+on Scanner/i), jm=msg.match(/(?:job|Job)\s+(\d+)/i), no=opened?opened[1]:(jm?jm[1]:null);
+   const p=e.action==="Log"&&/Updated job status to Picking/i.test(msg), k=e.action==="Log"&&/Updated job status to Packing/i.test(msg), c=e.action==="Log"&&/Completed Job/i.test(msg), phys=e.action==="Pick"||e.action==="Pack";
+   if(opened){currentJob=ensure(opened[1],e);continue}
+   if(p){currentJob=ensure(no||currentJob?.jobNo,e);currentJob.statusPickStart=e.timestamp;continue}
+   if(k){currentJob=ensure(no||currentJob?.jobNo,e);currentJob.packStart=e.timestamp;continue}
+   if(phys){
+     const j=ensure(no||currentJob?.jobNo,e);const m=msg.match(/([\d,.]+)\s+unit/i),u=m?Number(m[1].replace(/,/g,"")):1;
+     (e.action==="Pick"?j.picks:j.packs).push({...e,units:u});
+     continue;
+   }
+   if(c){currentJob=ensure(no||currentJob?.jobNo,e);currentJob.complete=e.timestamp;currentJob=null;continue}
+ }
+ for(const j of out){
+   j.pickUnits=j.picks.reduce((a,x)=>a+x.units,0); j.packUnits=j.packs.reduce((a,x)=>a+x.units,0);
+   j.pickContributors=[...new Set(j.picks.map(x=>valid(x.user)).filter(Boolean))];
+   j.packContributors=[...new Set(j.packs.map(x=>valid(x.user)).filter(Boolean))];
+   j.contributors=[...new Set([...j.pickContributors,...j.packContributors])];
+   j.pickByUser={}; j.packByUser={};
+   for(const e of j.picks){const u=valid(e.user)||"Unknown";(j.pickByUser[u]??=[]).push(e)}
+   for(const e of j.packs){const u=valid(e.user)||"Unknown";(j.packByUser[u]??=[]).push(e)}
+   const metrics=(map)=>Object.fromEntries(Object.entries(map).map(([u,es])=>{
+     es.sort((a,b)=>a.timestamp-b.timestamp); const units=es.reduce((a,x)=>a+x.units,0);
+     let mins=0;if(es.length>=2)mins=Math.max(0,(es.at(-1).timestamp-es[0].timestamp)/60000);
+     return [u,{units,minutes:mins,rate:rate(units,mins),transactions:es.length,first:es[0].timestamp,last:es.at(-1).timestamp}]
+   }));
+   j.pickMetrics=metrics(j.pickByUser); j.packMetrics=metrics(j.packByUser);
+   j.physicalPickStart=j.picks.length?j.picks[0].timestamp:null; j.physicalPickEnd=j.picks.length?j.picks.at(-1).timestamp:null;
+   j.physicalPackStart=j.packs.length?j.packs[0].timestamp:null; j.physicalPackEnd=j.packs.length?j.packs.at(-1).timestamp:null;
+   j.pickMinutes=j.statusPickStart&&j.packStart?Math.max(0,(j.packStart-j.statusPickStart)/60000):0;
+   j.packMinutes=j.packStart&&j.complete?Math.max(0,(j.complete-j.packStart)/60000):0;
+   j.date=dk(j.complete||j.packStart||j.physicalPackEnd||j.physicalPickStart||j.statusPickStart);
+   j.user=j.contributors.length===1?j.contributors[0]:j.contributors.length>1?"Multiple users":"";
+ }
+ return out;
+}
+async function commitChunks(ops){
+ for(let i=0;i<ops.length;i+=450){let b=db.batch();ops.slice(i,i+450).forEach(o=>o(b));await b.commit();}
+}
+async function importFiles(){
+ if(!selected.length)return alert('Select files first.');
+ let ok=0,skip=0,bad=0,totalEvents=0,totalJobs=0,totalGaps=0;
+ for(let i=0;i<selected.length;i++){
+  const f=selected[i];$('status').textContent=`Processing locally ${i+1} / ${selected.length}: ${f.name}`;
+  try{
+   const buf=await f.arrayBuffer(),id=await hash(buf);
+   // Exactly one read per file for duplicate detection.
+   if((await db.collection(C.imports).doc(id).get()).exists){skip++;continue}
+   const store=storeName(f.name),rows=parse(f,buf),js=makeJobs(store,f.name,rows),gaps=[];
+   // Build gaps locally.
+   js.forEach(j=>{const byUser={};[...(j.picks||[]),...(j.packs||[])].forEach(e=>{const u=e.user||'Unknown';(byUser[u]??=[]).push(e)});Object.entries(byUser).forEach(([u,p])=>{p.sort((a,b)=>a.timestamp-b.timestamp);for(let z=1;z<p.length;z++){const gm=(p[z].timestamp-p[z-1].timestamp)/60000;if(gm>10)gaps.push({fileId:id,store,fileName:f.name,jobNo:j.jobNo,user:u,date:j.date,minutes:gm,from:firebase.firestore.Timestamp.fromDate(p[z-1].timestamp),to:firebase.firestore.Timestamp.fromDate(p[z].timestamp),fromAction:p[z-1].action,toAction:p[z].action,fromMessage:p[z-1].message,toMessage:p[z].message})}})});
+   const ops=[];
+   // RAW EVENTS: 250 events per document.
+   for(let z=0;z<rows.length;z+=250){
+    const chunk=rows.slice(z,z+250).map(e=>({action:e.action,user:e.user,message:e.message,timestamp:e.timestamp.toISOString(),date:dk(e.timestamp)}));
+    ops.push(b=>b.set(db.collection(C.events).doc(id+'_chunk_'+Math.floor(z/250)),{fileId:id,store,fileName:f.name,chunkIndex:Math.floor(z/250),count:chunk.length,dates:[...new Set(chunk.map(x=>x.date))],events:chunk}));
+   }
+   // JOBS: 250 jobs per document.
+   const jobDocs=js.map(j=>({fileId:id,store,fileName:f.name,jobNo:j.jobNo,user:j.user,contributors:j.contributors,pickContributors:j.pickContributors,packContributors:j.packContributors,pickMetrics:j.pickMetrics,packMetrics:j.packMetrics,date:j.date,statusPickStart:j.statusPickStart?.toISOString()||null,packStart:j.packStart?.toISOString()||null,complete:j.complete?.toISOString()||null,pickUnits:j.pickUnits||0,packUnits:j.packUnits||0,pickMinutes:j.pickMinutes||0,packMinutes:j.packMinutes||0}));
+   for(let z=0;z<jobDocs.length;z+=250){const chunk=jobDocs.slice(z,z+250);ops.push(b=>b.set(db.collection(C.jobs).doc(id+'_jobs_'+Math.floor(z/250)),{fileId:id,store,fileName:f.name,date:chunk[0]?.date||'',chunkIndex:Math.floor(z/250),count:chunk.length,jobs:chunk}));}
+   // GAPS: 250 gaps per document.
+   for(let z=0;z<gaps.length;z+=250){const chunk=gaps.slice(z,z+250);ops.push(b=>b.set(db.collection(C.gaps).doc(id+'_gaps_'+Math.floor(z/250)),{fileId:id,store,fileName:f.name,date:chunk[0]?.date||'',chunkIndex:Math.floor(z/250),count:chunk.length,gaps:chunk}));}
+   // One import-history document.
+   ops.push(b=>b.set(db.collection(C.imports).doc(id),{fileName:f.name,store,hash:id,recordCount:rows.length,jobCount:js.length,gapCount:gaps.length,importedAt:firebase.firestore.FieldValue.serverTimestamp()}));
+   await commitChunks(ops);
+   ok++;totalEvents+=rows.length;totalJobs+=js.length;totalGaps+=gaps.length;
+  }catch(e){console.error('Import failed',f.name,e);bad++}
+ }
+ selected=[];$('fileInput').value='';$('status').textContent=`Done • ${ok} imported • ${skip} duplicates • ${bad} failed • ${n(totalEvents)} events • ${n(totalJobs)} jobs • ${n(totalGaps)} gaps`;
+ await init();importLog();
+}
+async function repairExistingJobs(){
+ const evSnap=await db.collection(C.events).limit(5000).get();
+ const byFile={};evSnap.forEach(d=>{const e=d.data();(byFile[e.fileId]??=[]).push({action:e.action,user:e.user||'',message:e.message||'',timestamp:e.timestamp?.toDate?e.timestamp.toDate():new Date(e.timestamp)});});
+ for(const fileId of Object.keys(byFile)){
+  const events=byFile[fileId];
+  const sample=events[0]||{};
+  const imp=await db.collection(C.imports).doc(fileId).get();
+  if(!imp.exists)continue;
+  const meta=imp.data();const js=makeJobs(meta.store,meta.fileName,events);
+  const old=await db.collection(C.jobs).where('fileId','==',fileId).get();
+  const oldG=await db.collection(C.gaps).where('fileId','==',fileId).get();
+  let ops=[];old.docs.forEach(d=>ops.push(b=>b.delete(d.ref)));oldG.docs.forEach(d=>ops.push(b=>b.delete(d.ref)));
+  js.forEach((j,k)=>ops.push(b=>b.set(db.collection(C.jobs).doc(fileId+'_'+k+'_'+j.jobNo),{fileId,store:meta.store,fileName:meta.fileName,jobNo:j.jobNo,user:j.user,contributors:j.contributors,pickContributors:j.pickContributors,packContributors:j.packContributors,pickMetrics:j.pickMetrics,packMetrics:j.packMetrics,date:j.date,statusPickStart:j.statusPickStart?firebase.firestore.Timestamp.fromDate(j.statusPickStart):null,packStart:j.packStart?firebase.firestore.Timestamp.fromDate(j.packStart):null,complete:j.complete?firebase.firestore.Timestamp.fromDate(j.complete):null,pickUnits:j.pickUnits||0,packUnits:j.packUnits||0,pickMinutes:j.pickMinutes||0,packMinutes:j.packMinutes||0})));
+  await commitChunks(ops);
+ }
+}
+
+async function jobsFor(day,store=''){
+ const s=await db.collection(C.jobs).where('date','==',day).get();let out=[];
+ s.docs.forEach(d=>{const x=d.data();if(Array.isArray(x.jobs))x.jobs.forEach(j=>out.push({...j,id:d.id+'_'+j.jobNo}));else out.push({id:d.id,...x});});
+ return out.filter(x=>!store||x.store===store);
+}
+async function gapsFor(day,t=10){
+ const s=await db.collection(C.gaps).where('date','==',day).get(),out=[];
+ s.docs.forEach(d=>{const x=d.data();if(Array.isArray(x.gaps))x.gaps.forEach(g=>{if(g.minutes>t)out.push({...g})});else if((x.minutes||0)>t)out.push(x)});return out;
+}
+function aggregate(js){
+ let m={};
+ const add=(u,role,kind,data,j)=>{
+   u=u||"Unknown";if(!m[u])m[u]={user:u,role:people[u]||role||'Pick / Pack',pickUnits:0,pickJobs:0,pickMinutes:0,packUnits:0,packJobs:0,packMinutes:0,jobs:new Set()};
+   let r=m[u];r.jobs.add(j.jobNo);
+   if(kind==='pick'){r.pickUnits+=data.units||0;r.pickJobs+=1;r.pickMinutes+=data.minutes||0}
+   else {r.packUnits+=data.units||0;r.packJobs+=1;r.packMinutes+=data.minutes||0}
+ };
+ js.forEach(j=>{Object.entries(j.pickMetrics||{}).forEach(([u,d])=>add(u,people[u]||'Pick / Pack','pick',d,j));Object.entries(j.packMetrics||{}).forEach(([u,d])=>add(u,people[u]||'Pick / Pack','pack',d,j))});
+ return Object.values(m).map(r=>{r.jobs=r.jobs.size;r.pickRate=rate(r.pickUnits,r.pickMinutes);r.packRate=rate(r.packUnits,r.packMinutes);return r})
+}
+function personTable(rows){return `<thead><tr><th>Person</th><th>Role</th><th>Pick Units</th><th>Pick Jobs</th><th>Total Pick Processing Time</th><th>Pick Units/Min</th><th>Pack Units</th><th>Pack Jobs</th><th>Total Pack Processing Time</th><th>Pack Units/Min</th><th>WMS Transactions</th><th>WMS Pick Units</th><th>Other WMS Transactions</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.user)}</b></td><td>${esc(r.role)}</td><td class="num">${n(r.pickUnits)}</td><td class="num">${n(r.pickJobs)}</td><td>${minutes(r.pickMinutes)}</td><td class="num">${r.pickRate==null?'—':r.pickRate.toFixed(2)}</td><td class="num">${n(r.packUnits)}</td><td class="num">${n(r.packJobs)}</td><td>${minutes(r.packMinutes)}</td><td class="num">${r.packRate==null?'—':r.packRate.toFixed(2)}</td><td class="num">${n(r.wmsTransactions)}</td><td class="num">${n(r.wmsPickUnits)}</td><td class="num">${n(r.wmsOtherTransactions)}</td></tr>`).join('')}</tbody>`}
+function ranking(el,rows,key,unit){let x=rows.filter(r=>r[key]!=null).sort((a,b)=>b[key]-a[key]);$(el).innerHTML=x.map((r,i)=>`<div class="rank"><b>#${i+1}</b><span>${esc(r.user)}<br><small>${esc(r.role)}</small></span><b>${r[key].toFixed(2)}</b><span>${n(r[unit])}</span></div>`).join('')||'<span class="sub">No measurable rate</span>'}
+async function dashboard(){let d=$('dashDate').value;if(!d)return;let r=aggregate(await jobsFor(d,$('dashStore').value)),g=await gapsFor(d),w=await wmsFor(d);let wm={};w.forEach(x=>{let u=x.user||'Unknown';if(!wm[u])wm[u]={wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0};wm[u].wmsTransactions++;if(x.type==='Pick')wm[u].wmsPickUnits+=Math.abs(x.quantity||0);else wm[u].wmsOtherTransactions++});r=r.map(x=>({...x,...(wm[x.user]||{wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0})}));let pu=r.reduce((a,x)=>a+x.pickUnits,0),ku=r.reduce((a,x)=>a+x.packUnits,0),pt=r.reduce((a,x)=>a+x.pickMinutes,0),kt=r.reduce((a,x)=>a+x.packMinutes,0),wPick=w.filter(x=>x.type==='Pick');$('metrics').innerHTML=[['People',r.length],['Jobs',r.reduce((a,x)=>a+x.pickJobs,0)+r.reduce((a,x)=>a+x.packJobs,0)],['Pick Units',n(pu)],['Pack Units',n(ku)],['Team Pick Avg',avg(r,'pickRate')],['Team Pack Avg',avg(r,'packRate')],['Pick Processing',minutes(pt)],['Pack Processing',minutes(kt)],['WMS Transactions',n(w.length)],['WMS Pick Units',n(wPick.reduce((a,x)=>a+Math.abs(x.quantity||0),0))],['Other WMS Activity',n(w.length-wPick.length)],['Gaps >10m',g.length]].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');$('peopleTable').innerHTML=personTable(r);ranking('pickRank',r,'pickRate','pickUnits');ranking('packRank',r,'packRate','packUnits')}
+function avg(r,k){let x=r.filter(a=>a[k]!=null);return x.length?(x.reduce((a,b)=>a+b[k],0)/x.length).toFixed(2)+' u/min':'—'}
+async function daily(){let d=$('dailyDate').value,js=await jobsFor(d),r=aggregate(js),g=await gapsFor(d),w=await wmsFor(d);let wm={};w.forEach(x=>{let u=x.user||'Unknown';if(!wm[u])wm[u]={wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0};wm[u].wmsTransactions++;if(x.type==='Pick')wm[u].wmsPickUnits+=Math.abs(x.quantity||0);else wm[u].wmsOtherTransactions++});r=r.map(x=>({...x,...(wm[x.user]||{wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0})}));$('dailyMetrics').innerHTML=[['Stores',new Set(js.map(x=>x.store)).size],['Jobs',js.length],['Pick Units',n(r.reduce((a,x)=>a+x.pickUnits,0))],['Pack Units',n(r.reduce((a,x)=>a+x.packUnits,0))],['Team Pick Avg',avg(r,'pickRate')],['Team Pack Avg',avg(r,'packRate')],['WMS Transactions',n(w.length)],['WMS Pick Units',n(w.filter(x=>x.type==='Pick').reduce((a,x)=>a+Math.abs(x.quantity||0),0))],['Other WMS Activity',n(w.filter(x=>x.type!=='Pick').length)],['Gaps >10m',g.length]].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');$('dailyTable').innerHTML=personTable(r);ranking('dailyPick',r,'pickRate','pickUnits');ranking('dailyPack',r,'packRate','packUnits')}
+async function saveSnapshot(){let d=$('dailyDate').value,r=aggregate(await jobsFor(d)),g10=await gapsFor(d,10),g20=await gapsFor(d,20),w=await wmsFor(d);await db.collection(C.snapshots).doc(d).set({date:d,createdAt:firebase.firestore.FieldValue.serverTimestamp(),stores:[...new Set((await jobsFor(d)).map(x=>x.store))],people:r,gaps10:g10.length,gaps20:g20.length,wmsTransactions:w.length,wmsPickUnits:w.filter(x=>x.type==='Pick').reduce((a,x)=>a+Math.abs(x.quantity||0),0),otherWmsTransactions:w.filter(x=>x.type!=='Pick').length});alert('Snapshot saved: '+d)}
+async function jobsPage(){let d=$('jobsDate').value,j=await jobsFor(d,$('jobsStore').value);$('jobsTable').innerHTML='<thead><tr><th>Store</th><th>Job / Order</th><th>Pick Users</th><th>Pack Users</th><th>Total Pick Units</th><th>Total Pack Units</th><th>Pick Contribution Detail</th><th>Pack Contribution Detail</th><th>Completed</th></tr></thead><tbody>'+j.map(x=>`<tr><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc((x.pickContributors||[]).join(', ')||'—')}</td><td>${esc((x.packContributors||[]).join(', ')||'—')}</td><td>${n(x.pickUnits)}</td><td>${n(x.packUnits)}</td><td style="white-space:normal">${Object.entries(x.pickMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td style="white-space:normal">${Object.entries(x.packMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td>${x.complete?.toDate?x.complete.toDate().toLocaleTimeString():''}</td></tr>`).join('')+'</tbody>'}
+async function gapsPage(){let d=$('gapsDate').value,t=Number($('threshold').value),g=await gapsFor(d,t);$('gapsTable').innerHTML='<thead><tr><th>Store</th><th>Job / Order</th><th>Person</th><th>Gap</th><th>From</th><th>To</th><th>From Activity</th><th>To Activity</th><th>From Detail</th><th>To Detail</th></tr></thead><tbody>'+g.sort((a,b)=>b.minutes-a.minutes).map(x=>`<tr><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc(x.user)}</td><td class="${x.minutes>20?'bad':'warn'}">${minutes(x.minutes)}</td><td>${x.from?.toDate?x.from.toDate().toLocaleTimeString():''}</td><td>${x.to?.toDate?x.to.toDate().toLocaleTimeString():''}</td><td>${esc(x.fromAction)}</td><td>${esc(x.toAction)}</td><td>${esc(x.fromMessage)}</td><td>${esc(x.toMessage)}</td></tr>`).join('')+'</tbody>'}
+async function clearPickPackData(){
+ if(!confirm("CLEAR ALL Pick/Pack data from Firebase?\n\nThis deletes only Pick/Pack events, jobs, gaps, import history and saved snapshots. People/Roles and all other Firebase collections are kept.\n\nThis cannot be undone."))return;
+ try{$('status').textContent='Clearing Firebase data...';let total=0;for(const name of [C.events,C.jobs,C.gaps,C.imports,C.snapshots,C.wms,C.wmsImports]){const snap=await db.collection(name).get();const ops=snap.docs.map(d=>b=>b.delete(d.ref));total+=ops.length;await commitChunks(ops)}alert('Pick/Pack data cleared.\n\n'+n(total)+' documents deleted.');await init()}catch(e){console.error(e);alert('Clear failed: '+e.message)}}
+
+async function init(){
+ setupWmsImport();
+ // Do not scan the entire jobs collection on startup. Use import history (small) only
+ // to populate available dates/stores, then load actual jobs for the selected day.
+ try{
+  const s=await db.collection(C.imports).orderBy('importedAt','desc').limit(200).get();
+  const dates=[],stores=[];
+  s.docs.forEach(d=>{const x=d.data();if(x.store&&!stores.includes(x.store))stores.push(x.store);});
+  // Get dates from the daily date index if present; otherwise derive from the newest job chunks.
+  let daySnap=[];
+  try{daySnap=(await db.collection(C.jobs).orderBy('date','desc').limit(100).get()).docs.map(d=>d.data().date).filter(Boolean)}catch(e){console.warn('Date index fallback failed',e)}
+  const ds=[...new Set(daySnap)].sort().reverse();
+  $('dashDate').innerHTML=ds.map(d=>`<option>${d}</option>`).join('');
+  ['dailyDate','jobsDate','gapsDate'].forEach(id=>{if(!$(id).value)$(id).value=ds[0]||dk(new Date())});
+  $('dashStore').innerHTML='<option value="">All Stores</option>'+stores.sort().map(x=>`<option>${esc(x)}</option>`).join('');
+  $('jobsStore').innerHTML=$('dashStore').innerHTML;
+  if(ds.length)await dashboard();
+ }catch(e){console.error('Initial Firebase load failed:',e)}
+}
+async function importLog(){let s=await db.collection(C.imports).orderBy('importedAt','desc').limit(200).get();$('importTable').innerHTML='<thead><tr><th>File</th><th>Store</th><th>Records</th><th>Jobs</th><th>Imported</th></tr></thead><tbody>'+s.docs.map(d=>{let x=d.data();return `<tr><td>${esc(x.fileName)}</td><td>${esc(x.store)}</td><td>${n(x.recordCount)}</td><td>${n(x.jobCount)}</td><td>${x.importedAt?.toDate?x.importedAt.toDate().toLocaleString():''}</td></tr>`}).join('')+'</tbody>'}
+async function rolesPage(){let s=await db.collection(C.people).get();people={};s.forEach(d=>people[d.id]=d.data().role);let j=await jobsFor($('dailyDate').value||'');let users=[...new Set(j.map(x=>x.user).filter(Boolean))].sort();$('roles').innerHTML=users.map(u=>`<div class="toolbar" style="margin:8px 0"><b style="min-width:180px">${esc(u)}</b><select id="role_${esc(u)}"><option>Picker</option><option>Packer</option><option>Pick / Pack</option><option>Ops Manager</option><option>Other</option></select><button onclick="saveRole('${esc(u)}')">Save</button></div>`).join('')||'<span class="sub">Import data first.</span>'}
+async function saveRole(u){let v=$('role_'+u).value;await db.collection(C.people).doc(u).set({role:v});people[u]=v;dashboard()}
+setupWmsImport();fileInput.onchange=e=>{selected=[...e.target.files];status.textContent=selected.length+" files selected"};drop.ondragover=e=>{e.preventDefault();drop.classList.add('drag')};drop.ondragleave=()=>drop.classList.remove('drag');drop.ondrop=e=>{e.preventDefault();drop.classList.remove('drag');selected=[...e.dataTransfer.files].filter(f=>/\.(xlsx|xls|csv)$/i.test(f.name));status.textContent=selected.length+' files selected'};(async()=>{await init();importLog();})();
+</script></body></html>
