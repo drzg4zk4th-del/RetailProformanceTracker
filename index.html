@@ -6,21 +6,33 @@
 </style></head><body><nav>
 <button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button>
 </nav><main><h1>Billini Pick / Pack Performance</h1><div class="sub">Firebase-backed • incremental store-file history • no authentication code included yet</div><div class="sub ok" style="margin-top:6px">Firebase Optimised • events/jobs/gaps/WMS stored in 250-row chunks • no per-transaction writes • no automatic repair scan</div>
-<section id="dashboard" class="page active"><div class="card toolbar"><label>Date<select id="dashDate"></select></label><label>Store<select id="dashStore"><option value="">All Stores</option></select></label><button class="primary" onclick="dashboard()">Refresh</button></div><div id="metrics" class="grid"></div><div class="grid"><div class="card"><h2>Pick Ranking</h2><div id="pickRank"></div></div><div class="card"><h2>Pack Ranking</h2><div id="packRank"></div></div></div><div class="card"><h2>Individual Performance</h2><div class="sub">Individual units and rates come from that person's own Pick/Pack transactions. A multi-user order is never credited entirely to one person.</div><div class="tablewrap"><table id="peopleTable"></table></div></div></section>
-<section id="daily" class="page"><div class="card toolbar"><label>Snapshot Day<input type="date" id="dailyDate"></label><button class="primary" onclick="daily()">Show Day</button><button onclick="saveSnapshot()">Save Snapshot to Firebase</button></div><div id="dailyMetrics" class="grid"></div><div class="card"><h2>Daily Individual Result</h2><div class="tablewrap"><table id="dailyTable"></table></div></div><div class="grid"><div class="card"><h2>Daily Pick Ranking</h2><div id="dailyPick"></div></div><div class="card"><h2>Daily Pack Ranking</h2><div id="dailyPack"></div></div></div></section>
-<section id="jobs" class="page"><div class="card"><h2>Jobs / Orders — Multi-user attribution</h2><div class="sub">A job can have multiple Pickers and/or Packers. Units are credited only to the person who performed the individual transaction.</div></div><div class="card toolbar"><label>Date<input type="date" id="jobsDate"></label><label>Store<select id="jobsStore"><option value="">All Stores</option></select></label><button class="primary" onclick="jobsPage()">Load</button></div><div class="card"><div class="tablewrap"><table id="jobsTable"></table></div></div></section>
-<section id="gaps" class="page"><div class="card toolbar"><label>Date<input type="date" id="gapsDate"></label><label>Threshold<select id="threshold"><option value="10">Greater than 10 min</option><option value="20">Greater than 20 min</option></select></label><button class="primary" onclick="gapsPage()">Load</button></div><div class="card"><div class="tablewrap"><table id="gapsTable"></table></div></div></section>
+<section id="dashboard" class="page active"><div class="card toolbar">
+<label>Start Date<input type="date" id="dashStartDate"></label>
+<label>End Date<input type="date" id="dashEndDate"></label>
+<label>Store<select id="dashStore"><option value="">All Stores</option></select></label>
+<button class="primary" onclick="dashboard()">Refresh Range</button>
+</div><div id="metrics" class="grid"></div><div class="grid"><div class="card"><h2>Pick Ranking</h2><div id="pickRank"></div></div><div class="card"><h2>Pack Ranking</h2><div id="packRank"></div></div></div><div class="card"><h2>Individual Performance</h2><div class="sub">Individual units and rates come from that person's own Pick/Pack transactions. A multi-user order is never credited entirely to one person.</div><div class="tablewrap"><table id="peopleTable"></table></div></div></section>
+<section id="daily" class="page"><div class="card toolbar">
+<label>Start Date<input type="date" id="dailyStartDate"></label>
+<label>End Date<input type="date" id="dailyEndDate"></label>
+<button class="primary" onclick="daily()">Show Range</button>
+<button onclick="saveSnapshot()">Save Snapshot to Firebase</button>
+</div><div id="dailyMetrics" class="grid"></div><div class="card"><h2>Daily Individual Result</h2><div class="tablewrap"><table id="dailyTable"></table></div></div><div class="grid"><div class="card"><h2>Daily Pick Ranking</h2><div id="dailyPick"></div></div><div class="card"><h2>Daily Pack Ranking</h2><div id="dailyPack"></div></div></div></section>
+<section id="jobs" class="page"><div class="card"><h2>Jobs / Orders — Multi-user attribution</h2><div class="sub">A job can have multiple Pickers and/or Packers. Units are credited only to the person who performed the individual transaction.</div></div>
+<div class="card toolbar"><label>Start Date<input type="date" id="jobsStartDate"></label><label>End Date<input type="date" id="jobsEndDate"></label><label>Store<select id="jobsStore"><option value="">All Stores</option></select></label><button class="primary" onclick="jobsPage()">Load Range</button></div><div class="card"><div class="tablewrap"><table id="jobsTable"></table></div></div></section>
+<section id="gaps" class="page"><div class="card toolbar"><label>Start Date<input type="date" id="gapsStartDate"></label><label>End Date<input type="date" id="gapsEndDate"></label><label>Threshold<select id="threshold"><option value="10">Greater than 10 min</option><option value="20">Greater than 20 min</option></select></label><button class="primary" onclick="gapsPage()">Load Range</button></div><div class="card"><div class="tablewrap"><table id="gapsTable"></table></div></div></section>
 <section id="wms" class="page">
 <div class="card toolbar">
-  <label>Date<input type="date" id="wmsDate"></label>
+  <label>Start Date<input type="date" id="wmsStartDate"></label>
+  <label>End Date<input type="date" id="wmsEndDate"></label>
   <label>User<select id="wmsUser"><option value="">All Users</option></select></label>
   <label>Transaction Type<select id="wmsType"><option value="">All Types</option></select></label>
-  <button class="primary" onclick="wmsPage()">Refresh Daily Activity</button>
+  <button class="primary" onclick="wmsPage()">Refresh Activity</button>
 </div>
 
 <div class="card">
   <h2>Warehouse Daily Activity &amp; Stock Accuracy</h2>
-  <div class="sub">Daily WMS / ULD activity report — structured to mirror the daily warehouse email.</div>
+  <div class="sub">WMS / ULD activity report — select a date range to combine multiple days into one report.</div>
 </div>
 
 <div id="wmsOverview" class="grid"></div>
@@ -125,10 +137,35 @@ async function wmsFor(day,user='',type=''){
  });
  return out;
 }
+
+function dateRangeDays(start,end){
+ const out=[];let d=new Date(start+'T00:00:00'),last=new Date(end+'T00:00:00');
+ while(d<=last){out.push(dk(d));d.setDate(d.getDate()+1)}
+ return out;
+}
+
+// Multi-day report: one Firestore query for up to 30 dates.
+async function wmsForDays(days){
+ if(!days.length)return [];
+ if(days.length>30)throw Error('Please select a range of 30 days or less.');
+ const s=await db.collection(C.wms).where('dates','array-contains-any',days).get();
+ const wanted=new Set(days),out=[];
+ s.docs.forEach(d=>{
+  const x=d.data(),events=Array.isArray(x.events)?x.events:[x];
+  events.forEach(e=>{
+   const r={...e,id:d.id};
+   r.timestamp=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp);
+   r.date=r.date||dk(r.timestamp);
+   if(wanted.has(r.date))out.push(r);
+  });
+ });
+ return out;
+}
 async function wmsInit(){
  setupWmsImport();
- if(!$('wmsDate').value)$('wmsDate').value=dk(new Date());
- // Do not scan all historical WMS data on startup. Details are loaded only for the selected day.
+ const today=dk(new Date());
+ if(!$('wmsStartDate').value)$('wmsStartDate').value=today;
+ if(!$('wmsEndDate').value)$('wmsEndDate').value=today;
  try{await wmsPage()}catch(e){console.error('WMS init failed',e)}
 }
 function wmsTextList(title, rows, unitLabel='units', topN=12){
@@ -185,11 +222,21 @@ function wmsStyleSummary(rows){
   return Object.values(m).sort((a,b)=>b.qty-a.qty);
 }
 async function wmsPage(){
-  const day=$('wmsDate').value;
-  if(!day)return;
+  const start=$('wmsStartDate').value,end=$('wmsEndDate').value;
+  if(!start||!end)return;
+  if(end<start){alert('End Date cannot be before Start Date.');return;}
+  const days=dateRangeDays(start,end);
+  if(days.length>30){alert('Please select a range of 30 days or less.');return;}
   try{
-    const all=await wmsFor(day);
-    const user=$('wmsUser').value, type=$('wmsType').value;
+    const all=await wmsForDays(days);
+    const currentUser=$('wmsUser').value,currentType=$('wmsType').value;
+    const users=[...new Set(all.map(x=>x.user).filter(Boolean))].sort();
+    const types=[...new Set(all.map(x=>x.type).filter(Boolean))].sort();
+    $('wmsUser').innerHTML='<option value="">All Users</option>'+users.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+    $('wmsType').innerHTML='<option value="">All Types</option>'+types.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+    if(users.includes(currentUser))$('wmsUser').value=currentUser;
+    if(types.includes(currentType))$('wmsType').value=currentType;
+    const user=$('wmsUser').value,type=$('wmsType').value;
     const r=all.filter(x=>(!user||x.user===user)&&(!type||x.type===type));
     const classified=r.map(x=>({...x,cat:wmsClassify(x)}));
 
@@ -253,7 +300,7 @@ async function wmsPage(){
 
     $('wmsReplenishment').innerHTML=
       `<p>A total of <b>${n(replUnits)} units were transferred in for replenishment across ${n(styles(replen))} styles</b>, compared with <b>${n(pickUnits)} units picked</b>.</p>`+
-      `<p><b>${n(Math.max(0,gap))}-unit gap</b> between picking and replenishment. Replenishment covered approximately <b>${coverage}%</b> of today's picking volume.</p>`+
+      `<p><b>${n(Math.max(0,gap))}-unit gap</b> between picking and replenishment. Replenishment covered approximately <b>${coverage}%</b> of the selected period's picking volume.</p>`+
       wmsTextList('User breakdown',replUsers)+
       `<div class="sub" style="margin-top:12px">The report highlights the relationship between picking demand and replenishment output so the daily replenishment deficit can be monitored consistently.</div>`;
 
@@ -295,8 +342,8 @@ async function wmsPage(){
     if(reversal.length) points.push(`<b>${n(reversal.length)} pick reversal${reversal.length===1?'':'s'}</b> recorded.`);
     $('wmsKeyPoints').innerHTML=points.length?'<ol>'+points.map(x=>`<li style="margin:8px 0">${x}</li>`).join('')+'</ol>':'<div class="sub">No key follow-up points for this day.</div>';
 
-    $('wmsTable').innerHTML='<thead><tr><th>Time</th><th>User</th><th>Transaction Type</th><th>Qty</th><th>Location</th><th>ULD</th><th>Item Code</th><th>Item Name</th><th>Reference</th><th>Reference Type</th><th>Comment</th></tr></thead><tbody>'+
-      r.sort((a,b)=>a.timestamp-b.timestamp).map(x=>`<tr><td>${x.timestamp.toLocaleTimeString()}</td><td><b>${esc(x.user)}</b></td><td>${esc(x.type)}</td><td class="num">${n(x.quantity)}</td><td>${esc(x.location)}</td><td>${esc(x.uld)}</td><td>${esc(x.itemCode)}</td><td>${esc(x.itemName)}</td><td>${esc(x.reference)}</td><td>${esc(x.referenceType)}</td><td style="white-space:normal">${esc(x.comment)}</td></tr>`).join('')+'</tbody>';
+    $('wmsTable').innerHTML='<thead><tr><th>Date</th><th>Time</th><th>User</th><th>Transaction Type</th><th>Qty</th><th>Location</th><th>ULD</th><th>Item Code</th><th>Item Name</th><th>Reference</th><th>Reference Type</th><th>Comment</th></tr></thead><tbody>'+
+      r.sort((a,b)=>a.timestamp-b.timestamp).map(x=>`<tr><td>${esc(x.date||dk(x.timestamp))}</td><td>${x.timestamp.toLocaleTimeString()}</td><td><b>${esc(x.user)}</b></td><td>${esc(x.type)}</td><td class="num">${n(x.quantity)}</td><td>${esc(x.location)}</td><td>${esc(x.uld)}</td><td>${esc(x.itemCode)}</td><td>${esc(x.itemName)}</td><td>${esc(x.reference)}</td><td>${esc(x.referenceType)}</td><td style="white-space:normal">${esc(x.comment)}</td></tr>`).join('')+'</tbody>';
   }catch(e){console.error('WMS daily activity failed',e);alert('WMS daily activity load failed: '+e.message)}
 }
 
@@ -363,9 +410,9 @@ async function importFiles(){
    }
    // JOBS: 250 jobs per document.
    const jobDocs=js.map(j=>({fileId:id,store,fileName:f.name,jobNo:j.jobNo,user:j.user,contributors:j.contributors,pickContributors:j.pickContributors,packContributors:j.packContributors,pickMetrics:j.pickMetrics,packMetrics:j.packMetrics,date:j.date,statusPickStart:j.statusPickStart?.toISOString()||null,packStart:j.packStart?.toISOString()||null,complete:j.complete?.toISOString()||null,pickUnits:j.pickUnits||0,packUnits:j.packUnits||0,pickMinutes:j.pickMinutes||0,packMinutes:j.packMinutes||0}));
-   for(let z=0;z<jobDocs.length;z+=250){const chunk=jobDocs.slice(z,z+250);ops.push(b=>b.set(db.collection(C.jobs).doc(id+'_jobs_'+Math.floor(z/250)),{fileId:id,store,fileName:f.name,date:chunk[0]?.date||'',chunkIndex:Math.floor(z/250),count:chunk.length,jobs:chunk}));}
+   for(let z=0;z<jobDocs.length;z+=250){const chunk=jobDocs.slice(z,z+250);ops.push(b=>b.set(db.collection(C.jobs).doc(id+'_jobs_'+Math.floor(z/250)),{fileId:id,store,fileName:f.name,date:chunk[0]?.date||'',dates:[...new Set(chunk.map(x=>x.date).filter(Boolean))],chunkIndex:Math.floor(z/250),count:chunk.length,jobs:chunk}));}
    // GAPS: 250 gaps per document.
-   for(let z=0;z<gaps.length;z+=250){const chunk=gaps.slice(z,z+250);ops.push(b=>b.set(db.collection(C.gaps).doc(id+'_gaps_'+Math.floor(z/250)),{fileId:id,store,fileName:f.name,date:chunk[0]?.date||'',chunkIndex:Math.floor(z/250),count:chunk.length,gaps:chunk}));}
+   for(let z=0;z<gaps.length;z+=250){const chunk=gaps.slice(z,z+250);ops.push(b=>b.set(db.collection(C.gaps).doc(id+'_gaps_'+Math.floor(z/250)),{fileId:id,store,fileName:f.name,date:chunk[0]?.date||'',dates:[...new Set(chunk.map(x=>x.date).filter(Boolean))],chunkIndex:Math.floor(z/250),count:chunk.length,gaps:chunk}));}
    // One import-history document.
    ops.push(b=>b.set(db.collection(C.imports).doc(id),{fileName:f.name,store,hash:id,recordCount:rows.length,jobCount:js.length,gapCount:gaps.length,importedAt:firebase.firestore.FieldValue.serverTimestamp()}));
    await commitChunks(ops);
@@ -397,10 +444,54 @@ async function jobsFor(day,store=''){
  s.docs.forEach(d=>{const x=d.data();if(Array.isArray(x.jobs))x.jobs.forEach(j=>out.push({...j,id:d.id+'_'+j.jobNo}));else out.push({id:d.id,...x});});
  return out.filter(x=>!store||x.store===store);
 }
+
+async function jobsForDays(days,store=''){
+ if(!days.length)return [];
+ if(days.length>30)throw Error('Please select a range of 30 days or less.');
+ const out=[],seen=new Set();
+ // New job chunks can be queried in one request using dates[].
+ try{
+  const s=await db.collection(C.jobs).where('dates','array-contains-any',days).get();
+  s.docs.forEach(d=>{
+   const x=d.data(),arr=Array.isArray(x.jobs)?x.jobs:[x];
+   arr.forEach(j=>{const key=d.id+'_'+(j.jobNo||'');if(!seen.has(key)&&(!store||j.store===store)){seen.add(key);out.push({...j,id:key});}});
+  });
+ }catch(e){console.warn('Job date index unavailable; using existing date index',e)}
+ // Existing chunks use date==day, so retain compatibility.
+ for(const day of days){
+  const s=await db.collection(C.jobs).where('date','==',day).get();
+  s.docs.forEach(d=>{
+   const x=d.data(),arr=Array.isArray(x.jobs)?x.jobs:[x];
+   arr.forEach(j=>{const key=d.id+'_'+(j.jobNo||'');if(!seen.has(key)&&(!store||j.store===store)){seen.add(key);out.push({...j,id:key});}});
+  });
+ }
+ return out;
+}
+
 async function gapsFor(day,t=10){
  const s=await db.collection(C.gaps).where('date','==',day).get(),out=[];
  s.docs.forEach(d=>{const x=d.data();if(Array.isArray(x.gaps))x.gaps.forEach(g=>{if(g.minutes>t)out.push({...g})});else if((x.minutes||0)>t)out.push(x)});return out;
 }
+
+async function gapsForDays(days,t=10){
+ if(!days.length)return [];
+ if(days.length>30)throw Error('Please select a range of 30 days or less.');
+ const out=[],seen=new Set();
+ for(const day of days){
+  const s=await db.collection(C.gaps).where('date','==',day).get();
+  s.docs.forEach(d=>{
+   const x=d.data(),arr=Array.isArray(x.gaps)?x.gaps:[x];
+   arr.forEach(g=>{
+    if((g.minutes||0)>t){
+     const key=d.id+'_'+(g.jobNo||'')+'_'+(g.user||'')+'_'+(g.minutes||0)+'_'+(g.to?.seconds||g.to||'');
+     if(!seen.has(key)){seen.add(key);out.push({...g,date:g.date||day});}
+    }
+   });
+  });
+ }
+ return out;
+}
+
 function aggregate(js){
  let m={};
  const add=(u,role,kind,data,j)=>{
@@ -414,12 +505,47 @@ function aggregate(js){
 }
 function personTable(rows){return `<thead><tr><th>Person</th><th>Role</th><th>Pick Units</th><th>Pick Jobs</th><th>Total Pick Processing Time</th><th>Pick Units/Min</th><th>Pack Units</th><th>Pack Jobs</th><th>Total Pack Processing Time</th><th>Pack Units/Min</th><th>WMS Transactions</th><th>WMS Pick Units</th><th>Other WMS Transactions</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.user)}</b></td><td>${esc(r.role)}</td><td class="num">${n(r.pickUnits)}</td><td class="num">${n(r.pickJobs)}</td><td>${minutes(r.pickMinutes)}</td><td class="num">${r.pickRate==null?'—':r.pickRate.toFixed(2)}</td><td class="num">${n(r.packUnits)}</td><td class="num">${n(r.packJobs)}</td><td>${minutes(r.packMinutes)}</td><td class="num">${r.packRate==null?'—':r.packRate.toFixed(2)}</td><td class="num">${n(r.wmsTransactions)}</td><td class="num">${n(r.wmsPickUnits)}</td><td class="num">${n(r.wmsOtherTransactions)}</td></tr>`).join('')}</tbody>`}
 function ranking(el,rows,key,unit){let x=rows.filter(r=>r[key]!=null).sort((a,b)=>b[key]-a[key]);$(el).innerHTML=x.map((r,i)=>`<div class="rank"><b>#${i+1}</b><span>${esc(r.user)}<br><small>${esc(r.role)}</small></span><b>${r[key].toFixed(2)}</b><span>${n(r[unit])}</span></div>`).join('')||'<span class="sub">No measurable rate</span>'}
-async function dashboard(){let d=$('dashDate').value;if(!d)return;let r=aggregate(await jobsFor(d,$('dashStore').value)),g=await gapsFor(d),w=await wmsFor(d);let wm={};w.forEach(x=>{let u=x.user||'Unknown';if(!wm[u])wm[u]={wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0};wm[u].wmsTransactions++;if(x.type==='Pick')wm[u].wmsPickUnits+=Math.abs(x.quantity||0);else wm[u].wmsOtherTransactions++});r=r.map(x=>({...x,...(wm[x.user]||{wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0})}));let pu=r.reduce((a,x)=>a+x.pickUnits,0),ku=r.reduce((a,x)=>a+x.packUnits,0),pt=r.reduce((a,x)=>a+x.pickMinutes,0),kt=r.reduce((a,x)=>a+x.packMinutes,0),wPick=w.filter(x=>x.type==='Pick');$('metrics').innerHTML=[['People',r.length],['Jobs',r.reduce((a,x)=>a+x.pickJobs,0)+r.reduce((a,x)=>a+x.packJobs,0)],['Pick Units',n(pu)],['Pack Units',n(ku)],['Team Pick Avg',avg(r,'pickRate')],['Team Pack Avg',avg(r,'packRate')],['Pick Processing',minutes(pt)],['Pack Processing',minutes(kt)],['WMS Transactions',n(w.length)],['WMS Pick Units',n(wPick.reduce((a,x)=>a+Math.abs(x.quantity||0),0))],['Other WMS Activity',n(w.length-wPick.length)],['Gaps >10m',g.length]].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');$('peopleTable').innerHTML=personTable(r);ranking('pickRank',r,'pickRate','pickUnits');ranking('packRank',r,'packRate','packUnits')}
+async function dashboard(){
+ let start=$('dashStartDate').value,end=$('dashEndDate').value;
+ if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
+ const days=dateRangeDays(start,end),store=$('dashStore').value;
+ const all=(await Promise.all(days.map(d=>jobsFor(d,store)))).flat();
+ const r0=aggregate(all),g=(await Promise.all(days.map(d=>gapsFor(d)))).flat(),w=await wmsForDays(days);
+ let wm={};w.forEach(x=>{let u=x.user||'Unknown';if(!wm[u])wm[u]={wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0};wm[u].wmsTransactions++;if(x.type==='Pick')wm[u].wmsPickUnits+=Math.abs(x.quantity||0);else wm[u].wmsOtherTransactions++});
+ let r=r0.map(x=>({...x,...(wm[x.user]||{wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0})}));
+ let pu=r.reduce((a,x)=>a+x.pickUnits,0),ku=r.reduce((a,x)=>a+x.packUnits,0),pt=r.reduce((a,x)=>a+x.pickMinutes,0),kt=r.reduce((a,x)=>a+x.packMinutes,0),wPick=w.filter(x=>x.type==='Pick');
+ $('metrics').innerHTML=[['Period',start===end?start:start+' to '+end],['People',r.length],['Jobs',r.reduce((a,x)=>a+x.pickJobs,0)+r.reduce((a,x)=>a+x.packJobs,0)],['Pick Units',n(pu)],['Pack Units',n(ku)],['Team Pick Avg',avg(r,'pickRate')],['Team Pack Avg',avg(r,'packRate')],['Pick Processing',minutes(pt)],['Pack Processing',minutes(kt)],['WMS Transactions',n(w.length)],['WMS Pick Units',n(wPick.reduce((a,x)=>a+Math.abs(x.quantity||0),0))],['Other WMS Activity',n(w.length-wPick.length)],['Gaps >10m',g.length]].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
+ $('peopleTable').innerHTML=personTable(r);ranking('pickRank',r,'pickRate','pickUnits');ranking('packRank',r,'packRate','packUnits')
+}
 function avg(r,k){let x=r.filter(a=>a[k]!=null);return x.length?(x.reduce((a,b)=>a+b[k],0)/x.length).toFixed(2)+' u/min':'—'}
-async function daily(){let d=$('dailyDate').value,js=await jobsFor(d),r=aggregate(js),g=await gapsFor(d),w=await wmsFor(d);let wm={};w.forEach(x=>{let u=x.user||'Unknown';if(!wm[u])wm[u]={wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0};wm[u].wmsTransactions++;if(x.type==='Pick')wm[u].wmsPickUnits+=Math.abs(x.quantity||0);else wm[u].wmsOtherTransactions++});r=r.map(x=>({...x,...(wm[x.user]||{wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0})}));$('dailyMetrics').innerHTML=[['Stores',new Set(js.map(x=>x.store)).size],['Jobs',js.length],['Pick Units',n(r.reduce((a,x)=>a+x.pickUnits,0))],['Pack Units',n(r.reduce((a,x)=>a+x.packUnits,0))],['Team Pick Avg',avg(r,'pickRate')],['Team Pack Avg',avg(r,'packRate')],['WMS Transactions',n(w.length)],['WMS Pick Units',n(w.filter(x=>x.type==='Pick').reduce((a,x)=>a+Math.abs(x.quantity||0),0))],['Other WMS Activity',n(w.filter(x=>x.type!=='Pick').length)],['Gaps >10m',g.length]].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');$('dailyTable').innerHTML=personTable(r);ranking('dailyPick',r,'pickRate','pickUnits');ranking('dailyPack',r,'packRate','packUnits')}
-async function saveSnapshot(){let d=$('dailyDate').value,r=aggregate(await jobsFor(d)),g10=await gapsFor(d,10),g20=await gapsFor(d,20),w=await wmsFor(d);await db.collection(C.snapshots).doc(d).set({date:d,createdAt:firebase.firestore.FieldValue.serverTimestamp(),stores:[...new Set((await jobsFor(d)).map(x=>x.store))],people:r,gaps10:g10.length,gaps20:g20.length,wmsTransactions:w.length,wmsPickUnits:w.filter(x=>x.type==='Pick').reduce((a,x)=>a+Math.abs(x.quantity||0),0),otherWmsTransactions:w.filter(x=>x.type!=='Pick').length});alert('Snapshot saved: '+d)}
-async function jobsPage(){let d=$('jobsDate').value,j=await jobsFor(d,$('jobsStore').value);$('jobsTable').innerHTML='<thead><tr><th>Store</th><th>Job / Order</th><th>Pick Users</th><th>Pack Users</th><th>Total Pick Units</th><th>Total Pack Units</th><th>Pick Contribution Detail</th><th>Pack Contribution Detail</th><th>Completed</th></tr></thead><tbody>'+j.map(x=>`<tr><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc((x.pickContributors||[]).join(', ')||'—')}</td><td>${esc((x.packContributors||[]).join(', ')||'—')}</td><td>${n(x.pickUnits)}</td><td>${n(x.packUnits)}</td><td style="white-space:normal">${Object.entries(x.pickMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td style="white-space:normal">${Object.entries(x.packMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td>${x.complete?.toDate?x.complete.toDate().toLocaleTimeString():''}</td></tr>`).join('')+'</tbody>'}
-async function gapsPage(){let d=$('gapsDate').value,t=Number($('threshold').value),g=await gapsFor(d,t);$('gapsTable').innerHTML='<thead><tr><th>Store</th><th>Job / Order</th><th>Person</th><th>Gap</th><th>From</th><th>To</th><th>From Activity</th><th>To Activity</th><th>From Detail</th><th>To Detail</th></tr></thead><tbody>'+g.sort((a,b)=>b.minutes-a.minutes).map(x=>`<tr><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc(x.user)}</td><td class="${x.minutes>20?'bad':'warn'}">${minutes(x.minutes)}</td><td>${x.from?.toDate?x.from.toDate().toLocaleTimeString():''}</td><td>${x.to?.toDate?x.to.toDate().toLocaleTimeString():''}</td><td>${esc(x.fromAction)}</td><td>${esc(x.toAction)}</td><td>${esc(x.fromMessage)}</td><td>${esc(x.toMessage)}</td></tr>`).join('')+'</tbody>'}
+async function daily(){
+ let start=$('dailyStartDate').value,end=$('dailyEndDate').value;
+ if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
+ const days=dateRangeDays(start,end),js=(await Promise.all(days.map(d=>jobsFor(d)))).flat(),r=aggregate(js),g=(await Promise.all(days.map(d=>gapsFor(d)))).flat(),w=await wmsForDays(days);
+ let wm={};w.forEach(x=>{let u=x.user||'Unknown';if(!wm[u])wm[u]={wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0};wm[u].wmsTransactions++;if(x.type==='Pick')wm[u].wmsPickUnits+=Math.abs(x.quantity||0);else wm[u].wmsOtherTransactions++});
+ const rr=r.map(x=>({...x,...(wm[x.user]||{wmsTransactions:0,wmsPickUnits:0,wmsOtherTransactions:0})}));
+ $('dailyMetrics').innerHTML=[['Period',start===end?start:start+' to '+end],['Stores',new Set(js.map(x=>x.store)).size],['Jobs',js.length],['Pick Units',n(rr.reduce((a,x)=>a+x.pickUnits,0))],['Pack Units',n(rr.reduce((a,x)=>a+x.packUnits,0))],['Team Pick Avg',avg(rr,'pickRate')],['Team Pack Avg',avg(rr,'packRate')],['WMS Transactions',n(w.length)],['WMS Pick Units',n(w.filter(x=>x.type==='Pick').reduce((a,x)=>a+Math.abs(x.quantity||0),0))],['Other WMS Activity',n(w.filter(x=>x.type!=='Pick').length)],['Gaps >10m',g.length]].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
+ $('dailyTable').innerHTML=personTable(rr);ranking('dailyPick',rr,'pickRate','pickUnits');ranking('dailyPack',rr,'packRate','packUnits')
+}
+async function saveSnapshot(){
+ const start=$('dailyStartDate').value,end=$('dailyEndDate').value;
+ if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
+ const days=dateRangeDays(start,end),js=(await Promise.all(days.map(d=>jobsFor(d)))).flat(),r=aggregate(js),w=await wmsForDays(days);
+ await db.collection(C.snapshots).doc(start+'__'+end).set({startDate:start,endDate:end,dateRange:days,createdAt:firebase.firestore.FieldValue.serverTimestamp(),stores:[...new Set(js.map(x=>x.store))],people:r,wmsTransactions:w.length,wmsPickUnits:w.filter(x=>x.type==='Pick').reduce((a,x)=>a+Math.abs(x.quantity||0),0),otherWmsTransactions:w.filter(x=>x.type!=='Pick').length});
+ alert('Snapshot saved: '+start+' to '+end)
+}
+async function jobsPage(){
+ const start=$('jobsStartDate').value,end=$('jobsEndDate').value;
+ if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
+ const j=(await Promise.all(dateRangeDays(start,end).map(d=>jobsFor(d,$('jobsStore').value)))).flat();
+ $('jobsTable').innerHTML='<thead><tr><th>Date</th><th>Store</th><th>Job / Order</th><th>Pick Users</th><th>Pack Users</th><th>Total Pick Units</th><th>Total Pack Units</th><th>Pick Contribution Detail</th><th>Pack Contribution Detail</th><th>Completed</th></tr></thead><tbody>'+j.map(x=>`<tr><td>${esc(x.date||'')}</td><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc((x.pickContributors||[]).join(', ')||'—')}</td><td>${esc((x.packContributors||[]).join(', ')||'—')}</td><td>${n(x.pickUnits)}</td><td>${n(x.packUnits)}</td><td style="white-space:normal">${Object.entries(x.pickMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td style="white-space:normal">${Object.entries(x.packMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td>${x.complete?.toDate?x.complete.toDate().toLocaleTimeString():''}</td></tr>`).join('')+'</tbody>'
+}
+async function gapsPage(){
+ const start=$('gapsStartDate').value,end=$('gapsEndDate').value,t=Number($('threshold').value);
+ if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
+ const g=(await Promise.all(dateRangeDays(start,end).map(d=>gapsFor(d,t)))).flat();
+ $('gapsTable').innerHTML='<thead><tr><th>Date</th><th>Store</th><th>Job / Order</th><th>Person</th><th>Gap</th><th>From</th><th>To</th><th>From Activity</th><th>To Activity</th><th>From Detail</th><th>To Detail</th></tr></thead><tbody>'+g.sort((a,b)=>b.minutes-a.minutes).map(x=>`<tr><td>${esc(x.date||'')}</td><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc(x.user)}</td><td class="${x.minutes>20?'bad':'warn'}">${minutes(x.minutes)}</td><td>${x.from?.toDate?x.from.toDate().toLocaleTimeString():''}</td><td>${x.to?.toDate?x.to.toDate().toLocaleTimeString():''}</td><td>${esc(x.fromAction)}</td><td>${esc(x.toAction)}</td><td>${esc(x.fromMessage)}</td><td>${esc(x.toMessage)}</td></tr>`).join('')+'</tbody>'
+}
 async function clearPickPackData(){
  if(!confirm("CLEAR ALL Pick/Pack data from Firebase?\n\nThis deletes only Pick/Pack events, jobs, gaps, import history and saved snapshots. People/Roles and all other Firebase collections are kept.\n\nThis cannot be undone."))return;
  try{$('status').textContent='Clearing Firebase data...';let total=0;for(const name of [C.events,C.jobs,C.gaps,C.imports,C.snapshots,C.wms,C.wmsImports]){const snap=await db.collection(name).get();const ops=snap.docs.map(d=>b=>b.delete(d.ref));total+=ops.length;await commitChunks(ops)}alert('Pick/Pack data cleared.\n\n'+n(total)+' documents deleted.');await init()}catch(e){console.error(e);alert('Clear failed: '+e.message)}}
@@ -437,14 +563,15 @@ async function init(){
   try{daySnap=(await db.collection(C.jobs).orderBy('date','desc').limit(100).get()).docs.map(d=>d.data().date).filter(Boolean)}catch(e){console.warn('Date index fallback failed',e)}
   const ds=[...new Set(daySnap)].sort().reverse();
   $('dashDate').innerHTML=ds.map(d=>`<option>${d}</option>`).join('');
-  ['dailyDate','jobsDate','gapsDate'].forEach(id=>{if(!$(id).value)$(id).value=ds[0]||dk(new Date())});
+  const defaultDay=ds[0]||dk(new Date());
+   ['dashStartDate','dashEndDate','dailyStartDate','dailyEndDate','jobsStartDate','jobsEndDate','gapsStartDate','gapsEndDate'].forEach(id=>{if(!$(id).value)$(id).value=defaultDay});
   $('dashStore').innerHTML='<option value="">All Stores</option>'+stores.sort().map(x=>`<option>${esc(x)}</option>`).join('');
   $('jobsStore').innerHTML=$('dashStore').innerHTML;
   if(ds.length)await dashboard();
  }catch(e){console.error('Initial Firebase load failed:',e)}
 }
 async function importLog(){let s=await db.collection(C.imports).orderBy('importedAt','desc').limit(200).get();$('importTable').innerHTML='<thead><tr><th>File</th><th>Store</th><th>Records</th><th>Jobs</th><th>Imported</th></tr></thead><tbody>'+s.docs.map(d=>{let x=d.data();return `<tr><td>${esc(x.fileName)}</td><td>${esc(x.store)}</td><td>${n(x.recordCount)}</td><td>${n(x.jobCount)}</td><td>${x.importedAt?.toDate?x.importedAt.toDate().toLocaleString():''}</td></tr>`}).join('')+'</tbody>'}
-async function rolesPage(){let s=await db.collection(C.people).get();people={};s.forEach(d=>people[d.id]=d.data().role);let j=await jobsFor($('dailyDate').value||'');let users=[...new Set(j.map(x=>x.user).filter(Boolean))].sort();$('roles').innerHTML=users.map(u=>`<div class="toolbar" style="margin:8px 0"><b style="min-width:180px">${esc(u)}</b><select id="role_${esc(u)}"><option>Picker</option><option>Packer</option><option>Pick / Pack</option><option>Ops Manager</option><option>Other</option></select><button onclick="saveRole('${esc(u)}')">Save</button></div>`).join('')||'<span class="sub">Import data first.</span>'}
+async function rolesPage(){let s=await db.collection(C.people).get();people={};s.forEach(d=>people[d.id]=d.data().role);let j=await jobsFor($('dailyStartDate').value||'');let users=[...new Set(j.map(x=>x.user).filter(Boolean))].sort();$('roles').innerHTML=users.map(u=>`<div class="toolbar" style="margin:8px 0"><b style="min-width:180px">${esc(u)}</b><select id="role_${esc(u)}"><option>Picker</option><option>Packer</option><option>Pick / Pack</option><option>Ops Manager</option><option>Other</option></select><button onclick="saveRole('${esc(u)}')">Save</button></div>`).join('')||'<span class="sub">Import data first.</span>'}
 async function saveRole(u){let v=$('role_'+u).value;await db.collection(C.people).doc(u).set({role:v});people[u]=v;dashboard()}
 setupWmsImport();fileInput.onchange=e=>{selected=[...e.target.files];status.textContent=selected.length+" files selected"};drop.ondragover=e=>{e.preventDefault();drop.classList.add('drag')};drop.ondragleave=()=>drop.classList.remove('drag');drop.ondrop=e=>{e.preventDefault();drop.classList.remove('drag');selected=[...e.dataTransfer.files].filter(f=>/\.(xlsx|xls|csv)$/i.test(f.name));status.textContent=selected.length+' files selected'};(async()=>{await init();importLog();})();
 </script></body></html>
