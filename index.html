@@ -1,10 +1,23 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Billini Pick / Pack Performance</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial;background:#020817;color:#fff}nav{padding:12px;background:#081120;border-bottom:1px solid #1e293b;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:9}button,input,select{background:#0f172a;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px}button{cursor:pointer}.primary{background:#2563eb}.danger{background:#7f1d1d;border-color:#991b1b;color:#fff}main{max-width:1800px;margin:auto;padding:22px}.page{display:none}.page.active{display:block}.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.metric .label{color:#94a3b8;font-size:13px}.metric .value{font-size:30px;font-weight:800;margin-top:8px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:5px;color:#cbd5e1;font-size:12px}.tablewrap{overflow:auto;max-height:65vh;border:1px solid #1e293b;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1100px}th,td{padding:11px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#0b1324}.num{text-align:right}.sub{color:#94a3b8}.rank{display:grid;grid-template-columns:45px 1fr 110px 100px;padding:11px;border-bottom:1px solid #1e293b;gap:8px}.ok{color:#4ade80}.warn{color:#facc15}.bad{color:#f87171}#drop,#wmsDrop{padding:32px;text-align:center;border:2px dashed #334155;border-radius:18px}#drop.drag,#wmsDrop.drag{border-color:#38bdf8;background:#0b1b32}.pill{background:#1e293b;padding:6px 10px;border-radius:99px}
+
+.export-note{color:#94a3b8;font-size:12px;margin-left:6px}
+@media print{
+  nav{display:none!important}
+  body{background:#fff!important;color:#000!important}
+  main{max-width:none;padding:10px}
+  .card{background:#fff!important;color:#000!important;border:1px solid #bbb!important;break-inside:avoid}
+  .sub,.metric .label{color:#555!important}
+  .metric .value{color:#000!important}
+  th{background:#eee!important;color:#000!important}
+  td,th{border-color:#ccc!important}
+  .tablewrap{max-height:none!important;overflow:visible!important}
+}
 </style></head><body><nav>
-<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('reconciliation')">Pick vs Pack Reconciliation</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button>
+<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('reconciliation')">Pick vs Pack Reconciliation</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button><span style="flex:1"></span><button class="primary" onclick="exportDashboardExcel()">Export Excel</button><button class="primary" onclick="exportDashboardPDF()">Export PDF</button>
 </nav><main><h1>Billini Pick / Pack Performance</h1><div class="sub">Firebase-backed • incremental store-file history • no authentication code included yet</div><div class="sub ok" style="margin-top:6px">Firebase Optimised • events/jobs/gaps/WMS stored in 250-row chunks • no per-transaction writes • no automatic repair scan</div>
 <section id="dashboard" class="page active"><div class="card toolbar">
 <label>Start Date<input type="date" id="dashStartDate"></label>
@@ -698,6 +711,174 @@ async function gapsPage(){
 async function clearPickPackData(){
  if(!confirm("CLEAR ALL Pick/Pack data from Firebase?\n\nThis deletes only Pick/Pack events, jobs, gaps, import history and saved snapshots. People/Roles and all other Firebase collections are kept.\n\nThis cannot be undone."))return;
  try{$('status').textContent='Clearing Firebase data...';let total=0;for(const name of [C.events,C.jobs,C.gaps,C.imports,C.snapshots,C.wms,C.wmsImports]){const snap=await db.collection(name).get();const ops=snap.docs.map(d=>b=>b.delete(d.ref));total+=ops.length;await commitChunks(ops)}alert('Pick/Pack data cleared.\n\n'+n(total)+' documents deleted.');await init()}catch(e){console.error(e);alert('Clear failed: '+e.message)}}
+
+
+function exportMetricCards(containerId){
+  const rows=[];
+  const el=$(containerId);
+  if(!el)return rows;
+  el.querySelectorAll('.metric').forEach(card=>{
+    const label=card.querySelector('.label')?.innerText?.trim()||'';
+    const value=card.querySelector('.value')?.innerText?.trim()||'';
+    if(label)rows.push([label,value]);
+  });
+  return rows;
+}
+
+function tableToAOA(tableId){
+  const table=$(tableId);
+  if(!table)return [];
+  return [...table.querySelectorAll('tr')].map(tr=>
+    [...tr.querySelectorAll('th,td')].map(td=>td.innerText.replace(/\s+/g,' ').trim())
+  ).filter(r=>r.some(Boolean));
+}
+
+function addSheetFromTable(wb,name,tableId){
+  const aoa=tableToAOA(tableId);
+  if(aoa.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),name);
+}
+
+function autoFitSheet(ws){
+  const range=ws['!ref'];
+  if(!range)return;
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  const widths=[];
+  rows.forEach(row=>row.forEach((v,i)=>{
+    widths[i]=Math.min(45,Math.max(widths[i]||10,String(v??'').length+2));
+  }));
+  ws['!cols']=widths.map(w=>({wch:w}));
+}
+
+async function exportDashboardExcel(){
+  try{
+    // Refresh the active dashboard first so the export reflects the selected filters/range.
+    if(document.getElementById('dashboard')?.classList.contains('active')) await dashboard();
+
+    const wb=XLSX.utils.book_new();
+    const start=$('dashStartDate')?.value||'';
+    const end=$('dashEndDate')?.value||'';
+    const store=$('dashStore')?.value||'All Stores';
+
+    const summary=[
+      ['Billini Pick / Pack Performance'],
+      ['Period',start===end?start:(start+' to '+end)],
+      ['Store',store],
+      [],
+      ['Metric','Value'],
+      ...exportMetricCards('metrics')
+    ];
+    const wsSummary=XLSX.utils.aoa_to_sheet(summary);
+    XLSX.utils.book_append_sheet(wb,wsSummary,'Dashboard Summary');
+
+    addSheetFromTable(wb,'Individual Performance','peopleTable');
+
+    // Export all currently rendered WMS detail transactions when present.
+    addSheetFromTable(wb,'WMS Transactions','wmsTable');
+
+    // Export reconciliation and job/gap pages when they have data rendered.
+    addSheetFromTable(wb,'Jobs Orders','jobsTable');
+    addSheetFromTable(wb,'Reconciliation','reconTable');
+    addSheetFromTable(wb,'Gaps','gapsTable');
+    addSheetFromTable(wb,'Daily Individual','dailyTable');
+
+    // Add readable text summaries for WMS cards.
+    const wmsSections=[
+      ['WMS Overview','wmsOverview'],
+      ['Receiving','wmsReceiving'],
+      ['Picking','wmsPicking'],
+      ['Replenishment','wmsReplenishment'],
+      ['Verification','wmsVerification'],
+      ['Stock Adjustments','wmsAdjustments'],
+      ['No Location','wmsNoLocation'],
+      ['ULD Activity','wmsUldActivity'],
+      ['Key Points','wmsKeyPoints']
+    ];
+    for(const [name,id] of wmsSections){
+      const el=$(id);
+      if(!el || !el.innerText.trim())continue;
+      const rows=el.innerText.split(/\n+/).map(x=>[x.trim()]).filter(x=>x[0]);
+      const ws=XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31));
+    }
+
+    wb.SheetNames.forEach(name=>autoFitSheet(wb.Sheets[name]));
+    const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    XLSX.writeFile(wb,`Billini_Dashboard_${start||'current'}_${end||'current'}_${stamp}.xlsx`);
+  }catch(e){
+    console.error('Excel export failed',e);
+    alert('Excel export failed: '+e.message);
+  }
+}
+
+async function exportDashboardPDF(){
+  try{
+    // Refresh the dashboard so the PDF reflects the selected date/store filters.
+    if(document.getElementById('dashboard')?.classList.contains('active')) await dashboard();
+
+    const source=$('dashboard');
+    if(!source)throw Error('Dashboard section not found');
+
+    const clone=source.cloneNode(true);
+    clone.style.display='block';
+    clone.style.background='#fff';
+    clone.style.color='#000';
+    clone.style.padding='18px';
+    clone.style.width='1200px';
+
+    // Give the PDF a clear report heading.
+    const header=document.createElement('div');
+    header.innerHTML=
+      '<h1 style="font-family:Arial;margin:0 0 6px;color:#000">Billini Pick / Pack Performance</h1>'+
+      '<div style="font-family:Arial;color:#555;margin-bottom:16px">'+
+      'Period: '+esc($('dashStartDate')?.value||'')+
+      (($('dashStartDate')?.value||'')!==($('dashEndDate')?.value||'')?' to '+esc($('dashEndDate')?.value||''):'')+
+      ' &nbsp; | &nbsp; Store: '+esc($('dashStore')?.value||'All Stores')+
+      '</div>';
+    clone.insertBefore(header,clone.firstChild);
+
+    // Remove interactive controls from the PDF copy.
+    clone.querySelectorAll('button,input,select').forEach(x=>x.remove());
+    clone.querySelectorAll('.toolbar').forEach(x=>x.remove());
+
+    clone.querySelectorAll('.card').forEach(x=>{
+      x.style.background='#fff';
+      x.style.color='#000';
+      x.style.borderColor='#bbb';
+      x.style.breakInside='avoid';
+    });
+    clone.querySelectorAll('.sub,.metric .label').forEach(x=>x.style.color='#555');
+    clone.querySelectorAll('th').forEach(x=>{
+      x.style.background='#eee';
+      x.style.color='#000';
+    });
+    clone.querySelectorAll('td,th').forEach(x=>x.style.borderColor='#ccc');
+
+    const holder=document.createElement('div');
+    holder.style.position='fixed';
+    holder.style.left='-100000px';
+    holder.style.top='0';
+    holder.style.background='#fff';
+    holder.appendChild(clone);
+    document.body.appendChild(holder);
+
+    const start=$('dashStartDate')?.value||'current';
+    const end=$('dashEndDate')?.value||'current';
+    const filename=`Billini_Dashboard_${start}_${end}.pdf`;
+
+    await html2pdf().set({
+      margin:8,
+      filename,
+      image:{type:'jpeg',quality:0.95},
+      html2canvas:{scale:1.5,useCORS:true,backgroundColor:'#fff'},
+      jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}
+    }).from(clone).save();
+
+    holder.remove();
+  }catch(e){
+    console.error('PDF export failed',e);
+    alert('PDF export failed: '+e.message);
+  }
+}
 
 async function init(){
  setupWmsImport();
