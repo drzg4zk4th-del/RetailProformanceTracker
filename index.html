@@ -17,7 +17,7 @@
   .tablewrap{max-height:none!important;overflow:visible!important}
 }
 </style></head><body><nav>
-<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('reconciliation')">Pick vs Pack Reconciliation</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button><span style="flex:1"></span><button class="primary" onclick="exportDashboardExcel()">Export Excel</button><button class="primary" onclick="exportDashboardPDF()">Export PDF</button>
+<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('reconciliation')">Pick vs Pack Reconciliation</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button><button onclick="page('staffing')">Staffing Calculator</button><span style="flex:1"></span><button class="primary" onclick="exportDashboardExcel()">Export Excel</button><button class="primary" onclick="exportDashboardPDF()">Export PDF</button>
 </nav><main><h1>Billini Pick / Pack Performance</h1><div class="sub">Firebase-backed • incremental store-file history • no authentication code included yet</div><div class="sub ok" style="margin-top:6px">Firebase Optimised • events/jobs/gaps/WMS stored in 250-row chunks • no per-transaction writes • no automatic repair scan</div>
 <section id="dashboard" class="page active"><div class="card toolbar">
 <label>Start Date<input type="date" id="dashStartDate"></label>
@@ -120,6 +120,32 @@
   <div class="tablewrap"><table id="wmsTable"></table></div>
 </div>
 </section><section id="imports" class="page"><div class="card"><h2>Import Store Job History Files</h2><div class="sub">Every Monday and Tuesday batch can be added here. Duplicate file content is skipped automatically.</div><div id="drop">Drop XLSX files here or <button class="primary" onclick="fileInput.click()">Choose Files</button><input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></div><div class="toolbar" style="margin-top:12px"><button class="primary" onclick="importFiles()">Import Selected Files</button><button class="danger" onclick="clearPickPackData()">Clear All Pick/Pack Data</button><span id="status" class="pill">Ready</span></div></div><div class="card"><h2>Import WMS / ULD Actions Log</h2><div class="sub">Import the "Stock Reporting - ULD Actions Log" XLSX files alongside the store Job History files. These records are linked by date and user to give the full warehouse picture.</div><div id="wmsDrop" class="drop">Drop ULD Actions XLSX here or <button class="primary" onclick="wmsFileInput.click()">Choose Files</button><input id="wmsFileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></div><div class="toolbar" style="margin-top:12px"><button class="primary" onclick="importWmsFiles()">Import WMS / ULD Files</button><span id="wmsStatus" class="pill">Ready</span></div></div><div class="card"><h2>Import History</h2><div class="tablewrap"><table id="importTable"></table></div></div></section>
+<section id="staffing" class="page">
+<div class="card">
+  <h2>Pick / Pack Staffing Calculator</h2>
+  <div class="sub">Enter only the total units to be despatched. The calculator uses historical Pick / Pack performance stored in Firebase to estimate labour, people required and expected elapsed time.</div>
+</div>
+<div class="card toolbar">
+  <label>Total Units to Despatch<input type="number" id="staffUnits" min="1" step="1" placeholder="e.g. 5000"></label>
+  <label>Available Shift Hours<input type="number" id="staffHours" min="0.5" step="0.25" value="7.75"></label>
+  <button class="primary" onclick="calculateStaffing()">Calculate</button>
+</div>
+<div id="staffingMetrics" class="grid"></div>
+<div class="grid">
+  <div class="card">
+    <h2>Picking</h2>
+    <div id="pickStaffResult"></div>
+  </div>
+  <div class="card">
+    <h2>Packing</h2>
+    <div id="packStaffResult"></div>
+  </div>
+</div>
+<div class="card">
+  <h2>Historical Basis</h2>
+  <div id="staffingBasis" class="sub">Enter units and calculate to load historical performance.</div>
+</div>
+</section>
 <section id="people" class="page"><div class="card"><h2>People / Roles</h2><div id="roles"></div></div></section>
 </main><script>
 const firebaseConfig = {
@@ -877,6 +903,82 @@ async function exportDashboardPDF(){
   }catch(e){
     console.error('PDF export failed',e);
     alert('PDF export failed: '+e.message);
+  }
+}
+
+
+async function getHistoricalStaffingRates(){
+  const snap=await db.collection(C.jobs).get();
+  const pick=[],pack=[];
+  snap.docs.forEach(d=>{
+    const x=d.data();
+    const jobs=Array.isArray(x.jobs)?x.jobs:[x];
+    jobs.forEach(j=>{
+      Object.values(j.pickMetrics||{}).forEach(m=>{
+        const u=Number(m.units)||0, mins=Number(m.minutes)||0;
+        if(u>0&&mins>0)pick.push(u/mins);
+      });
+      Object.values(j.packMetrics||{}).forEach(m=>{
+        const u=Number(m.units)||0, mins=Number(m.minutes)||0;
+        if(u>0&&mins>0)pack.push(u/mins);
+      });
+    });
+  });
+  const clean=a=>a.filter(x=>isFinite(x)&&x>0&&x<1000).sort((a,b)=>a-b);
+  const median=a=>{a=clean(a);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2};
+  const average=a=>{a=clean(a);return a.length?a.reduce((s,x)=>s+x,0)/a.length:null};
+  return {
+    pick:{median:median(pick),average:average(pick),samples:clean(pick).length},
+    pack:{median:median(pack),average:average(pack),samples:clean(pack).length}
+  };
+}
+
+function staffingCard(title,units,rate,shiftMinutes){
+  if(!rate)return '<p>No measurable historical '+title.toLowerCase()+' rate is available yet.</p>';
+  const labourMinutes=units/rate;
+  const people=Math.max(1,Math.ceil(labourMinutes/shiftMinutes));
+  const elapsed=labourMinutes/people;
+  const hours=Math.floor(elapsed/60), mins=Math.round(elapsed%60);
+  const labourHours=(labourMinutes/60);
+  return `<p><b>Historical rate:</b> ${rate.toFixed(2)} units/min per person</p>
+    <p><b>Estimated labour:</b> ${labourHours.toFixed(1)} person-hours</p>
+    <p><b>People required:</b> ${people}</p>
+    <p><b>Expected elapsed time:</b> ${hours}h ${String(mins).padStart(2,'0')}m</p>
+    <p class="sub">This assumes the people work in parallel at the historical rate and have ${shiftMinutes/60} productive hours available.</p>`;
+}
+
+async function calculateStaffing(){
+  const units=Math.floor(Number($('staffUnits').value));
+  const hours=Number($('staffHours').value);
+  if(!Number.isFinite(units)||units<1){alert('Enter the total units to be despatched.');return}
+  if(!Number.isFinite(hours)||hours<=0){alert('Enter available shift hours.');return}
+  const shiftMinutes=hours*60;
+  try{
+    $('staffingBasis').textContent='Loading historical Pick / Pack performance...';
+    const h=await getHistoricalStaffingRates();
+    const p=h.pick.median, k=h.pack.median;
+    const pPeople=p?Math.max(1,Math.ceil((units/p)/shiftMinutes)):0;
+    const kPeople=k?Math.max(1,Math.ceil((units/k)/shiftMinutes)):0;
+    const pTime=p&&pPeople?(units/p)/pPeople:0;
+    const kTime=k&&kPeople?(units/k)/kPeople:0;
+    const fmt=t=>{const hh=Math.floor(t/60),mm=Math.round(t%60);return hh?`${hh}h ${String(mm).padStart(2,'0')}m`:`${mm}m`};
+    $('staffingMetrics').innerHTML=[
+      ['Units to Despatch',n(units)],
+      ['Productive Shift',hours.toFixed(2)+' h'],
+      ['Pick People',pPeople||'—'],
+      ['Pack People',kPeople||'—'],
+      ['Pick Time',p?fmt(pTime):'—'],
+      ['Pack Time',k?fmt(kTime):'—']
+    ].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
+    $('pickStaffResult').innerHTML=staffingCard('Picking',units,p,shiftMinutes);
+    $('packStaffResult').innerHTML=staffingCard('Packing',units,k,shiftMinutes);
+    $('staffingBasis').innerHTML=`<p>Based on <b>${n(h.pick.samples)}</b> measurable historical Pick contributor rates and <b>${n(h.pack.samples)}</b> measurable historical Pack contributor rates.</p>
+      <p>The calculator uses the <b>median historical units/minute per person</b> rather than the average, so unusually fast or slow transactions have less influence.</p>
+      <p class="sub">The calculation is a planning estimate. It assumes the historical rate is representative of the work being planned and that pickers/packers can work in parallel without becoming constrained by cages, scanners, tables, replenishment, receiving, or other warehouse activity.</p>`;
+  }catch(e){
+    console.error('Staffing calculation failed',e);
+    $('staffingBasis').textContent='Unable to load historical data: '+e.message;
+    alert('Staffing calculation failed: '+e.message);
   }
 }
 
