@@ -2,7 +2,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#020817;color:#fff}nav{padding:12px;background:#081120;border-bottom:1px solid #1e293b;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:9}button,input,select{background:#0f172a;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px}button{cursor:pointer}.primary{background:#2563eb}.danger{background:#7f1d1d;border-color:#991b1b;color:#fff}main{max-width:1800px;margin:auto;padding:22px}.page{display:none}.page.active{display:block}.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.metric .label{color:#94a3b8;font-size:13px}.metric .value{font-size:30px;font-weight:800;margin-top:8px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:5px;color:#cbd5e1;font-size:12px}.tablewrap{overflow:auto;max-height:65vh;border:1px solid #1e293b;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1100px}th,td{padding:11px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#0b1324}.num{text-align:right}.sub{color:#94a3b8}.rank{display:grid;grid-template-columns:45px 1fr 110px 100px;padding:11px;border-bottom:1px solid #1e293b;gap:8px}.ok{color:#4ade80}.warn{color:#facc15}.bad{color:#f87171}#drop,#wmsDrop{padding:32px;text-align:center;border:2px dashed #334155;border-radius:18px}#drop.drag,#wmsDrop.drag{border-color:#38bdf8;background:#0b1b32}.pill{background:#1e293b;padding:6px 10px;border-radius:99px}
+*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#020817;color:#fff}nav{padding:12px;background:#081120;border-bottom:1px solid #1e293b;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:9}button,input,select{background:#0f172a;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px}button{cursor:pointer}.primary{background:#2563eb}.danger{background:#7f1d1d;border-color:#991b1b;color:#fff}main{max-width:1800px;margin:auto;padding:22px}.page{display:none}.page.active{display:block}.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.metric .label{color:#94a3b8;font-size:13px}.metric .value{font-size:30px;font-weight:800;margin-top:8px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:5px;color:#cbd5e1;font-size:12px}.tablewrap{overflow:auto;max-height:65vh;border:1px solid #1e293b;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1100px}th,td{padding:11px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#0b1324}.num{text-align:right}.sub{color:#94a3b8}.rank{display:grid;grid-template-columns:45px 1fr 110px 100px;padding:11px;border-bottom:1px solid #1e293b;gap:8px}.ok{color:#4ade80}.warn{color:#facc15}.bad{color:#f87171}#drop,#wmsDrop{padding:32px;text-align:center;border:2px dashed #334155;border-radius:18px}.card input[type="checkbox"]{width:18px;height:18px;accent-color:#2563eb}#drop.drag,#wmsDrop.drag{border-color:#38bdf8;background:#0b1b32}.pill{background:#1e293b;padding:6px 10px;border-radius:99px}
 
 .export-note{color:#94a3b8;font-size:12px;margin-left:6px}
 @media print{
@@ -17,7 +17,7 @@
   .tablewrap{max-height:none!important;overflow:visible!important}
 }
 </style></head><body><nav>
-<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('reconciliation')">Pick vs Pack Reconciliation</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button><button onclick="page('staffing')">Staffing Calculator</button><span style="flex:1"></span><button class="primary" onclick="exportDashboardExcel()">Export Excel</button><button class="primary" onclick="exportDashboardPDF()">Export PDF</button>
+<button onclick="page('dashboard')">Dashboard</button><button onclick="page('daily')">Daily Snapshot</button><button onclick="page('jobs')">Jobs / Orders</button><button onclick="page('reconciliation')">Pick vs Pack Reconciliation</button><button onclick="page('gaps')">Gaps / WMS</button><button onclick="page('wms')">Daily WMS / ULD Activity</button><button onclick="page('imports')">Import</button><button class="danger" onclick="clearPickPackData()">Clear Data</button><button onclick="page('people')">People / Roles</button><button onclick="page('staffing')">Staffing Calculator</button><button onclick="page('trends')">Trends</button><span style="flex:1"></span><button class="primary" onclick="exportDashboardExcel()">Export Excel</button><button class="primary" onclick="exportDashboardPDF()">Export PDF</button>
 </nav><main><h1>Billini Pick / Pack Performance</h1><div class="sub">Firebase-backed • incremental store-file history • no authentication code included yet</div><div class="sub ok" style="margin-top:6px">Firebase Optimised • events/jobs/gaps/WMS stored in 250-row chunks • no per-transaction writes • no automatic repair scan</div>
 <section id="dashboard" class="page active"><div class="card toolbar">
 <label>Start Date<input type="date" id="dashStartDate"></label>
@@ -122,29 +122,84 @@
 </section><section id="imports" class="page"><div class="card"><h2>Import Store Job History Files</h2><div class="sub">Every Monday and Tuesday batch can be added here. Duplicate file content is skipped automatically.</div><div id="drop">Drop XLSX files here or <button class="primary" onclick="fileInput.click()">Choose Files</button><input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></div><div class="toolbar" style="margin-top:12px"><button class="primary" onclick="importFiles()">Import Selected Files</button><button class="danger" onclick="clearPickPackData()">Clear All Pick/Pack Data</button><span id="status" class="pill">Ready</span></div></div><div class="card"><h2>Import WMS / ULD Actions Log</h2><div class="sub">Import the "Stock Reporting - ULD Actions Log" XLSX files alongside the store Job History files. These records are linked by date and user to give the full warehouse picture.</div><div id="wmsDrop" class="drop">Drop ULD Actions XLSX here or <button class="primary" onclick="wmsFileInput.click()">Choose Files</button><input id="wmsFileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden></div><div class="toolbar" style="margin-top:12px"><button class="primary" onclick="importWmsFiles()">Import WMS / ULD Files</button><span id="wmsStatus" class="pill">Ready</span></div></div><div class="card"><h2>Import History</h2><div class="tablewrap"><table id="importTable"></table></div></div></section>
 <section id="staffing" class="page">
 <div class="card">
-  <h2>Pick / Pack Staffing Calculator</h2>
-  <div class="sub">Enter only the total units to be despatched. The calculator uses historical Pick / Pack performance stored in Firebase to estimate labour, people required and expected elapsed time.</div>
+  <h2>Pick / Pack Staffing Calculator & Team Builder</h2>
+  <div class="sub">Select the people you want in each team. The calculator will show the estimated outcome for the Picking team and Packing team separately using the selected people's historical performance.</div>
 </div>
+
 <div class="card toolbar">
   <label>Total Units to Despatch<input type="number" id="staffUnits" min="1" step="1" placeholder="e.g. 5000"></label>
   <label>Available Shift Hours<input type="number" id="staffHours" min="0.5" step="0.25" value="7.75"></label>
-  <button class="primary" onclick="calculateStaffing()">Calculate</button>
+  <button class="primary" onclick="calculateStaffing()">Calculate Team</button>
 </div>
+
 <div id="staffingMetrics" class="grid"></div>
+
+<div class="card">
+  <h2>1. Select the people available</h2>
+  <div class="sub">Tick the people actually available for this shift. Historical rates are shown so the team can be built around the real people, not just a generic average.</div>
+  <div id="staffPeoplePicker"></div>
+</div>
+
 <div class="grid">
   <div class="card">
-    <h2>Picking</h2>
-    <div id="pickStaffResult"></div>
+    <h2>2. Picking Team</h2>
+    <div id="pickTeamBuilder"></div>
   </div>
   <div class="card">
-    <h2>Packing</h2>
-    <div id="packStaffResult"></div>
+    <h2>3. Packing Team</h2>
+    <div id="packTeamBuilder"></div>
   </div>
 </div>
+
+<div class="card">
+  <h2>Selected Team Outcomes</h2>
+  <div id="teamRecommendation"></div>
+</div>
+
+<div class="card">
+  <h2>Estimated Team Outcome</h2>
+  <div id="teamCapacity"></div>
+</div>
+
 <div class="card">
   <h2>Historical Basis</h2>
-  <div id="staffingBasis" class="sub">Enter units and calculate to load historical performance.</div>
+  <div id="staffingBasis" class="sub">Select the available people and calculate to load historical performance.</div>
 </div>
+</section>
+<section id="trends" class="page">
+<div class="card">
+  <h2>Performance Trends</h2>
+  <div class="sub">As more Job History files are imported, this section builds a longer-term view of Pick and Pack rates, workload and team capacity. Use the same imported data that powers the dashboard.</div>
+</div>
+<div class="card toolbar">
+  <label>Trend Start<input type="date" id="trendStartDate"></label>
+  <label>Trend End<input type="date" id="trendEndDate"></label>
+  <label>Group By<select id="trendGroup"><option value="day">Day</option><option value="week" selected>Week</option><option value="month">Month</option></select></label>
+  <label>Person<select id="trendPerson"><option value="">Whole Team</option></select></label>
+  <button class="primary" onclick="trendsPage()">Refresh Trends</button>
+</div>
+<div id="trendMetrics" class="grid"></div>
+<div class="grid">
+  <div class="card"><h2>Pick Rate Trend</h2><div id="pickTrendChart"></div></div>
+  <div class="card"><h2>Pack Rate Trend</h2><div id="packTrendChart"></div></div>
+</div>
+<div class="card"><h2>Workload Trend</h2><div id="workloadTrendChart"></div></div>
+<div class="card">
+  <h2>People Overview</h2>
+  <div class="sub">Quick view of individual Pick / Pack contribution, time and units per hour for the selected Trends range.</div>
+  <div class="tablewrap"><table id="trendPeopleTable"></table></div>
+</div>
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between;align-items:center">
+    <div>
+      <h2 style="margin:0">Performance Report Cards</h2>
+      <div class="sub">Individual report cards generated from the selected Trends date range.</div>
+    </div>
+    <button class="primary" onclick="generateTrendReportCards()">Generate Report Cards</button>
+  </div>
+  <div id="trendReportCards" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));margin-top:14px"></div>
+</div>
+<div class="card"><h2>Trend Detail</h2><div class="tablewrap"><table id="trendTable"></table></div></div>
 </section>
 <section id="people" class="page"><div class="card"><h2>People / Roles</h2><div id="roles"></div></div></section>
 </main><script>
@@ -158,7 +213,7 @@ appId: "1:1016653351453:web:a2a1f597844adf51ba54f4"
 };
 firebase.initializeApp(firebaseConfig);const db=firebase.firestore();
 const C={jobs:"pickPackJobs",events:"pickPackEvents",gaps:"pickPackGaps",imports:"pickPackImports",snapshots:"pickPackSnapshots",people:"pickPackPeople",wms:"pickPackWmsEvents",wmsImports:"pickPackWmsImports"};let selected=[],people={};
-const $=id=>document.getElementById(id);function page(id){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');if(id==='imports')importLog();if(id==='people')rolesPage();if(id==='wms')wmsInit()}
+const $=id=>document.getElementById(id);function page(id){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');if(id==='imports')importLog();if(id==='people')rolesPage();if(id==='wms')wmsInit();if(id==='staffing')staffingInit();if(id==='trends')trendsInit()}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}function n(v){return Number(v||0).toLocaleString()}function minutes(x){if(x==null||!isFinite(x))return'—';let h=Math.floor(x/60),m=Math.round(x%60);return h?h+'h '+String(m).padStart(2,'0')+'m':m+'m'}function dk(d){let x=d instanceof Date?d:new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')}function rate(u,t){return t>0?u/t:null}
 function storeName(name){return name.replace(/\.[^.]+$/,'').replace(/^Shipping\s*-\s*Job Management\s*-\s*Job History\s*/i,'').trim()||'Unknown Store'}
 async function hash(buf){let h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')}
@@ -907,6 +962,688 @@ async function exportDashboardPDF(){
 }
 
 
+
+let staffingPeople = {};
+let staffingAssignments = {};
+let staffingAvailable = {};
+
+async function getAllPeopleRates(){
+  const snap=await db.collection(C.jobs).get();
+  const m={};
+  snap.docs.forEach(d=>{
+    const x=d.data(), jobs=Array.isArray(x.jobs)?x.jobs:[x];
+    jobs.forEach(j=>{
+      Object.entries(j.pickMetrics||{}).forEach(([u,v])=>{
+        const units=Number(v.units)||0, mins=Number(v.minutes)||0;
+        if(!u||units<=0||mins<=0)return;
+        m[u]??={name:u,pick:[],pack:[]};
+        m[u].pick.push(units/mins);
+      });
+      Object.entries(j.packMetrics||{}).forEach(([u,v])=>{
+        const units=Number(v.units)||0, mins=Number(v.minutes)||0;
+        if(!u||units<=0||mins<=0)return;
+        m[u]??={name:u,pick:[],pack:[]};
+        m[u].pack.push(units/mins);
+      });
+    });
+  });
+  const clean=a=>a.filter(x=>isFinite(x)&&x>0&&x<1000).sort((a,b)=>a-b);
+  const median=a=>{a=clean(a);if(!a.length)return null;const i=Math.floor(a.length/2);return a.length%2?a[i]:(a[i-1]+a[i])/2};
+  Object.values(m).forEach(p=>{
+    p.pickRate=median(p.pick); p.packRate=median(p.pack);
+    p.role=people[p.name]||'Pick / Pack';
+    p.pickSamples=clean(p.pick).length; p.packSamples=clean(p.pack).length;
+  });
+  return m;
+}
+
+async function staffingInit(){
+  try{
+    const p=await getAllPeopleRates();
+    staffingPeople=p;
+    const names=Object.keys(p).sort((a,b)=>a.localeCompare(b));
+    if(!names.length){
+      $('staffPeoplePicker').innerHTML='<div class="sub">Import Job History data first.</div>';
+      return;
+    }
+    names.forEach(name=>{ if(staffingAvailable[name]===undefined) staffingAvailable[name]=true; });
+    renderStaffPeoplePicker();
+    renderTeamBuilders();
+  }catch(e){console.error('Staffing init failed',e);$('staffPeoplePicker').innerHTML='<div class="sub">Unable to load people: '+esc(e.message)+'</div>'}
+}
+
+function renderStaffPeoplePicker(){
+  const names=Object.keys(staffingPeople).sort();
+  $('staffPeoplePicker').innerHTML='<div class="tablewrap"><table><thead><tr><th>Available</th><th>Person</th><th>Role</th><th>Pick u/min</th><th>Pack u/min</th><th>Historical Samples</th></tr></thead><tbody>'+
+    names.map(name=>{
+      const p=staffingPeople[name];
+      const checked=staffingAvailable[name]!==false?'checked':'';
+      const rates=[p.pickRate,p.packRate].filter(x=>x!=null);
+      return `<tr><td><input type="checkbox" data-staff-person="${esc(name)}" ${checked}></td><td><b>${esc(name)}</b></td><td>${esc(p.role)}</td><td class="num">${p.pickRate==null?'—':p.pickRate.toFixed(2)}</td><td class="num">${p.packRate==null?'—':p.packRate.toFixed(2)}</td><td>${n(p.pickSamples)} Pick / ${n(p.packSamples)} Pack</td></tr>`;
+    }).join('')+'</tbody></table></div>';
+  document.querySelectorAll('[data-staff-person]').forEach(cb=>cb.onchange=()=>{
+    staffingAvailable[cb.dataset.staffPerson]=cb.checked;
+    renderTeamBuilders();
+    renderTeamRecommendation();
+  });
+}
+
+function availablePeople(){
+  return Object.values(staffingPeople).filter(p=>staffingAvailable[p.name]!==false);
+}
+
+function bestRate(p,role){
+  return role==='pick'?p.pickRate:p.packRate;
+}
+
+function renderTeamBuilders(){
+  const avail=availablePeople();
+  const build=(role)=>{
+    const assigned=new Set(Object.entries(staffingAssignments).filter(([u,r])=>r===role).map(([u])=>u));
+    const candidates=avail.filter(p=>bestRate(p,role)!=null).sort((a,b)=>bestRate(b,role)-bestRate(a,role));
+    return `<div class="sub" style="margin-bottom:10px">${candidates.length} people available with historical ${role==='pick'?'Pick':'Pack'} data.</div>`+
+      candidates.map(p=>{
+        const on=assigned.has(p.name)?'checked':'';
+        return `<label style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1e293b"><input type="checkbox" data-team-role="${role}" data-team-person="${esc(p.name)}" ${on}><span style="flex:1"><b>${esc(p.name)}</b><br><small class="sub">${esc(p.role)}</small></span><b>${bestRate(p,role).toFixed(2)} u/min</b></label>`;
+      }).join('') || '<div class="sub">No available people with measurable historical data for this activity.</div>';
+  };
+  $('pickTeamBuilder').innerHTML=build('pick');
+  $('packTeamBuilder').innerHTML=build('pack');
+  document.querySelectorAll('[data-team-role]').forEach(cb=>cb.onchange=()=>{
+    const u=cb.dataset.teamPerson, role=cb.dataset.teamRole;
+    if(cb.checked){
+      staffingAssignments[u]=role;
+    }else if(staffingAssignments[u]===role){
+      delete staffingAssignments[u];
+    }
+    renderTeamBuilders();
+    renderTeamRecommendation();
+    if($('staffUnits').value) calculateStaffing(true);
+  });
+}
+
+function assignmentRates(){
+  const pick=availablePeople().filter(p=>staffingAssignments[p.name]==='pick'&&p.pickRate!=null);
+  const pack=availablePeople().filter(p=>staffingAssignments[p.name]==='pack'&&p.packRate!=null);
+  return {pick,pack};
+}
+
+function teamRate(list,role){
+  return list.reduce((s,p)=>s+(role==='pick'?p.pickRate:p.packRate),0);
+}
+
+function renderTeamRecommendation(){
+  const units=Math.max(1,Math.floor(Number($('staffUnits').value)||0));
+  const hours=Math.max(.5,Number($('staffHours').value)||7.75);
+  const {pick,pack}=assignmentRates();
+  const outcome=(list,role)=>{
+    const r=teamRate(list,role), capacity=r*hours*60;
+    const finish=r?units/r:Infinity;
+    const utilisation=capacity?units/capacity*100:Infinity;
+    const names=list.map(p=>esc(p.name)).join(', ')||'No team selected';
+    const enough=capacity>=units;
+    const gap=Math.max(0,units-capacity);
+    return `<div class="card"><h3>${role==='pick'?'Picking':'Packing'} Team</h3>
+      <p><b>Selected:</b> ${names}</p>
+      <div class="grid">
+        <div><span class="sub">People</span><br><b>${list.length}</b></div>
+        <div><span class="sub">Combined rate</span><br><b>${r?r.toFixed(2)+' u/min':'—'}</b></div>
+        <div><span class="sub">Shift capacity</span><br><b>${r?n(Math.round(capacity)):'—'} units</b></div>
+        <div><span class="sub">Estimated finish</span><br><b>${r?formatMinutes(finish):'—'}</b></div>
+        <div><span class="sub">Capacity used</span><br><b>${isFinite(utilisation)?utilisation.toFixed(0)+'%':'—'}</b></div>
+        <div><span class="sub">Capacity status</span><br><b class="${enough?'ok':'bad'}">${enough?'Covers plan':'Short '+n(Math.ceil(gap))+' units'}</b></div>
+      </div>
+    </div>`;
+  };
+  $('teamRecommendation').innerHTML=`<div class="grid">${outcome(pick,'pick')}${outcome(pack,'pack')}</div>`;
+}
+function formatMinutes(t){if(!isFinite(t))return'—';const hh=Math.floor(t/60),mm=Math.round(t%60);return hh?`${hh}h ${String(mm).padStart(2,'0')}m`:`${mm}m`}
+
+async function calculateStaffing(silent=false){
+  const units=Math.floor(Number($('staffUnits').value));
+  const hours=Number($('staffHours').value);
+  if(!Number.isFinite(units)||units<1){if(!silent)alert('Enter the total units to be despatched.');return}
+  if(!Number.isFinite(hours)||hours<=0){if(!silent)alert('Enter available shift hours.');return}
+  try{
+    if(!Object.keys(staffingPeople).length) staffingPeople=await getAllPeopleRates();
+    const {pick,pack}=assignmentRates();
+    const outcome=(list,role)=>{
+      const r=teamRate(list,role), capacity=r*hours*60, finish=r?units/r:Infinity;
+      return {people:list.length,rate:r,capacity,finish,enough:r>0&&capacity>=units};
+    };
+    const pc=outcome(pick,'pick'),kc=outcome(pack,'pack');
+    $('staffingMetrics').innerHTML=[
+      ['Units to Despatch',n(units)],['Shift Hours',hours.toFixed(2)+' h'],
+      ['Picking Team',pc.people+' people'],['Packing Team',kc.people+' people'],
+      ['Pick Capacity',pc.rate?n(Math.round(pc.capacity)):'—'],['Pack Capacity',kc.rate?n(Math.round(kc.capacity)):'—'],
+      ['Pick Finish',pc.rate?formatMinutes(pc.finish):'—'],['Pack Finish',kc.rate?formatMinutes(kc.finish):'—']
+    ].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
+    renderTeamRecommendation();
+    $('teamCapacity').innerHTML=`<div class="grid">
+      <div class="card"><h3>Picking outcome</h3><p><b>${pc.enough?'Team has enough capacity':'Team does not have enough capacity'}</b> for ${n(units)} units.</p><p>At ${pc.rate?pc.rate.toFixed(2):'—'} u/min, the selected team would take <b>${pc.rate?formatMinutes(pc.finish):'—'}</b>.</p></div>
+      <div class="card"><h3>Packing outcome</h3><p><b>${kc.enough?'Team has enough capacity':'Team does not have enough capacity'}</b> for ${n(units)} units.</p><p>At ${kc.rate?kc.rate.toFixed(2):'—'} u/min, the selected team would take <b>${kc.rate?formatMinutes(kc.finish):'—'}</b>.</p></div>
+    </div>`;
+    $('staffingBasis').innerHTML=`<p>The estimate is based on the <b>combined historical median rate of the people you selected</b>. Each person's historical Pick/Pack performance remains separate.</p><p class="sub">This is an estimated outcome, not a guaranteed finish time. It assumes the selected people can work in parallel for the available shift without another warehouse activity becoming the constraint.</p>`;
+  }catch(e){console.error(e);if(!silent)alert('Staffing calculation failed: '+e.message)}
+}
+
+
+function trendKey(date,group){
+  const d=new Date(date+'T00:00:00');
+  if(group==='day') return date;
+  if(group==='month') return date.slice(0,7);
+  // Monday-based ISO-style week key: YYYY-Www
+  const x=new Date(d);
+  const day=x.getDay()||7;
+  x.setDate(x.getDate()+4-day);
+  const year=x.getFullYear();
+  const jan4=new Date(year,0,4);
+  const week=Math.ceil((((x-jan4)/86400000)+jan4.getDay()+1)/7);
+  return year+'-W'+String(week).padStart(2,'0');
+}
+function trendLabel(key,group){
+  if(group==='day') return key;
+  if(group==='month'){
+    const [y,m]=key.split('-');
+    return new Date(Number(y),Number(m)-1,1).toLocaleDateString(undefined,{month:'short',year:'numeric'});
+  }
+  const m=key.match(/^(\d{4})-W(\d{2})$/);
+  return m?`Week ${m[2]} ${m[1]}`:key;
+}
+function miniTrendChart(id,rows,field,unit){
+  const el=$(id);
+  if(!el)return;
+  if(!rows.length){
+    el.innerHTML='<div class="sub">No data available for the selected range.</div>';
+    return;
+  }
+  const vals=rows.map(r=>Number(r[field])||0);
+  const max=Math.max(...vals,0.01);
+  const min=Math.min(...vals);
+  const range=Math.max(max-min,0.01);
+  el.innerHTML=`
+    <div style="overflow-x:auto">
+      <div style="display:flex;align-items:flex-end;gap:8px;height:230px;padding:10px 8px 34px;border-bottom:1px solid #334155;min-width:${Math.max(520,rows.length*58)}px">
+        ${rows.map(r=>{
+          const v=Number(r[field])||0;
+          const h=Math.max(4,((v-min)/range)*175);
+          const change=field==='pickRate'?r.pickWoW:r.packWoW;
+          return `<div title="${esc(r.label)} — ${v?v.toFixed(2):'0.00'} ${unit}${change!=null?' — '+formatPct(change)+' vs prior':''}"
+            style="min-width:50px;height:205px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center">
+            <div style="font-size:11px;margin-bottom:4px">${v?v.toFixed(2):'0.00'}</div>
+            <div style="width:30px;height:${h}px;background:#60a5fa;border-radius:4px 4px 0 0"></div>
+            <div style="font-size:10px;margin-top:6px;white-space:nowrap;transform:rotate(-45deg);transform-origin:top center">${esc(r.shortLabel)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="sub" style="margin-top:8px">Bars show ${unit}; hover each period for the period-over-period change.</div>`;
+}
+
+
+
+async function trendDateList(){
+  const end=$('trendEndDate').value||dk(new Date());
+  const start=$('trendStartDate').value||end;
+  const out=[];
+  let d=new Date(start+'T00:00:00');
+  const last=new Date(end+'T00:00:00');
+  while(d<=last){
+    out.push(dk(d));
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+
+async function trendsInit(){
+  try{
+    let latest='';
+    try{
+      const s=await db.collection(C.jobs).orderBy('date','desc').limit(1).get();
+      if(!s.empty) latest=s.docs[0].data().date||'';
+    }catch(e){console.warn('Could not determine latest Trends date',e)}
+    const end=latest||dk(new Date());
+    const d=new Date(end+'T00:00:00');
+    d.setDate(d.getDate()-29);
+    const start=dk(d);
+
+    if(!$('trendStartDate').value)$('trendStartDate').value=start;
+    if(!$('trendEndDate').value)$('trendEndDate').value=end;
+
+    await populateTrendPeople();
+    await trendsPage();
+  }catch(e){
+    console.error('Trends init failed',e);
+    const m=$('trendMetrics');
+    if(m)m.innerHTML=`<div class="card"><b>Trends could not load.</b><div class="sub">${esc(e.message||e)}</div></div>`;
+  }
+}
+
+async function loadTrendJobs(){
+  const days=await trendDateList();
+  if(!days.length)return [];
+  const all=[];
+  for(let i=0;i<days.length;i+=30){
+    const chunk=days.slice(i,i+30);
+    try{
+      const rows=await jobsForDays(chunk);
+      all.push(...rows);
+    }catch(e){
+      console.warn('Trend job range failed',e);
+    }
+  }
+  const seen=new Set();
+  return all.filter(j=>{
+    const key=j.id||((j.date||'')+'|'+(j.jobNo||'')+'|'+(j.store||''));
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  });
+}
+
+function trendContributors(j,role){
+  const metrics=role==='pick'?(j.pickMetrics||{}):(j.packMetrics||{});
+  return Object.entries(metrics).map(([name,m])=>({
+    name,
+    units:Number(m.units)||0,
+    minutes:Number(m.minutes)||0
+  })).filter(x=>x.name);
+}
+
+async function populateTrendPeople(){
+  const sel=$('trendPerson');
+  if(!sel)return;
+  const jobs=await loadTrendJobs();
+  const names=new Set();
+  jobs.forEach(j=>{
+    [...trendContributors(j,'pick'),...trendContributors(j,'pack')].forEach(x=>names.add(x.name));
+  });
+  const current=sel.value;
+  sel.innerHTML='<option value="">Whole Team</option>'+
+    [...names].sort((a,b)=>a.localeCompare(b)).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  if([...sel.options].some(o=>o.value===current))sel.value=current;
+}
+
+async function trendsPage(){
+  const start=$('trendStartDate').value;
+  const end=$('trendEndDate').value;
+  const group=$('trendGroup').value||'week';
+  const selectedPerson=$('trendPerson').value||'';
+
+  if(!start||!end){
+    alert('Select a Trends start and end date.');
+    return;
+  }
+  if(start>end){
+    alert('Trend Start cannot be after Trend End.');
+    return;
+  }
+
+  try{
+    const jobs=await loadTrendJobs();
+    const rows=[];
+
+    jobs.forEach(j=>{
+      const date=j.date;
+      if(!date||date<start||date>end)return;
+
+      const pick=trendContributors(j,'pick');
+      const pack=trendContributors(j,'pack');
+
+      if(selectedPerson){
+        const p=pick.find(x=>x.name===selectedPerson)||{units:0,minutes:0};
+        const k=pack.find(x=>x.name===selectedPerson)||{units:0,minutes:0};
+        rows.push({
+          date, user:selectedPerson,
+          pick:{units:p.units,minutes:p.minutes},
+          pack:{units:k.units,minutes:k.minutes}
+        });
+      }else{
+        rows.push({
+          date,
+          user:'',
+          pick:{units:pick.reduce((s,x)=>s+x.units,0),minutes:pick.reduce((s,x)=>s+x.minutes,0)},
+          pack:{units:pack.reduce((s,x)=>s+x.units,0),minutes:pack.reduce((s,x)=>s+x.minutes,0)}
+        });
+      }
+    });
+
+    const grouped={};
+    rows.forEach(r=>{
+      const key=trendKey(r.date,group);
+      if(!grouped[key])grouped[key]={
+        key,
+        label:trendLabel(key,group),
+        shortLabel:group==='day'?r.date.slice(5):key.replace(/^\d{4}-/,''),
+        pickUnits:0,pickMinutes:0,
+        packUnits:0,packMinutes:0
+      };
+      grouped[key].pickUnits+=r.pick.units;
+      grouped[key].pickMinutes+=r.pick.minutes;
+      grouped[key].packUnits+=r.pack.units;
+      grouped[key].packMinutes+=r.pack.minutes;
+    });
+
+    const trendRows=Object.values(grouped).sort((a,b)=>a.key.localeCompare(b.key));
+    trendRows.forEach((r,i)=>{
+      r.pickRate=r.pickMinutes>0?r.pickUnits/r.pickMinutes:0;
+      r.packRate=r.packMinutes>0?r.packUnits/r.packMinutes:0;
+      r.totalUnits=r.pickUnits+r.packUnits;
+      r.totalMinutes=r.pickMinutes+r.packMinutes;
+      r.pickWoW=i>0&&trendRows[i-1].pickRate>0?((r.pickRate-trendRows[i-1].pickRate)/trendRows[i-1].pickRate)*100:null;
+      r.packWoW=i>0&&trendRows[i-1].packRate>0?((r.packRate-trendRows[i-1].packRate)/trendRows[i-1].packRate)*100:null;
+      r.unitsChange=i>0&&trendRows[i-1].totalUnits>0?((r.totalUnits-trendRows[i-1].totalUnits)/trendRows[i-1].totalUnits)*100:null;
+    });
+
+    const totalPickUnits=trendRows.reduce((s,r)=>s+r.pickUnits,0);
+    const totalPackUnits=trendRows.reduce((s,r)=>s+r.packUnits,0);
+    const totalUnits=totalPickUnits+totalPackUnits;
+    const totalPickMinutes=trendRows.reduce((s,r)=>s+r.pickMinutes,0);
+    const totalPackMinutes=trendRows.reduce((s,r)=>s+r.packMinutes,0);
+    const totalMinutes=totalPickMinutes+totalPackMinutes;
+
+    const avgPick=totalPickMinutes>0?totalPickUnits/totalPickMinutes:null;
+    const avgPack=totalPackMinutes>0?totalPackUnits/totalPackMinutes:null;
+
+    const changes=trendRows.slice(1).map(r=>r.unitsChange).filter(x=>x!=null);
+    const latest=trendRows.length>1?trendRows[trendRows.length-1].unitsChange:null;
+    const avgChange=changes.length?changes.reduce((s,x)=>s+x,0)/changes.length:null;
+
+    $('trendMetrics').innerHTML=[
+      ['Periods',n(trendRows.length)],
+      ['Pick Units',n(totalPickUnits)],
+      ['Pack Units',n(totalPackUnits)],
+      ['Total Units',n(totalUnits)],
+      ['Pick Rate',avgPick!=null?avgPick.toFixed(2)+' u/min':'—'],
+      ['Pack Rate',avgPack!=null?avgPack.toFixed(2)+' u/min':'—'],
+      ['Pick Time',minutes(totalPickMinutes)],
+      ['Pack Time',minutes(totalPackMinutes)],
+      ['Latest Unit Change',formatPct(latest)],
+      ['Average Period Change',formatPct(avgChange)]
+    ].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
+
+    miniTrendChart('pickTrendChart',trendRows,'pickRate','u/min');
+    miniTrendChart('packTrendChart',trendRows,'packRate','u/min');
+
+    $('workloadTrendChart').innerHTML=trendRows.length?`
+      <div style="overflow-x:auto">
+        <div style="display:flex;align-items:flex-end;gap:8px;height:230px;padding:10px 8px 34px;border-bottom:1px solid #334155;min-width:${Math.max(520,trendRows.length*58)}px">
+          ${trendRows.map(r=>{
+            const max=Math.max(...trendRows.map(x=>x.totalUnits),1);
+            const h=Math.max(4,(r.totalUnits/max)*175);
+            return `<div title="${esc(r.label)} — ${n(r.totalUnits)} units${r.unitsChange!=null?' — '+formatPct(r.unitsChange)+' vs prior':''}"
+              style="min-width:50px;height:205px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center">
+              <div style="font-size:11px;margin-bottom:4px">${n(r.totalUnits)}</div>
+              <div style="width:30px;height:${h}px;background:#a78bfa;border-radius:4px 4px 0 0"></div>
+              <div style="font-size:10px;margin-top:6px;white-space:nowrap;transform:rotate(-45deg);transform-origin:top center">${esc(r.shortLabel)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`:'<div class="sub">No data available for the selected range.</div>';
+
+    $('trendTable').innerHTML='<thead><tr>'+
+      '<th>Period</th><th>Pick Units</th><th>Pick Time</th><th>Pick Rate</th><th>Pick Change</th>'+
+      '<th>Pack Units</th><th>Pack Time</th><th>Pack Rate</th><th>Pack Change</th>'+
+      '<th>Total Units</th><th>Unit Change</th>'+
+      '</tr></thead><tbody>'+
+      (trendRows.length?trendRows.map(r=>`<tr>
+        <td><b>${esc(r.label)}</b></td>
+        <td class="num">${n(r.pickUnits)}</td>
+        <td>${minutes(r.pickMinutes)}</td>
+        <td>${r.pickMinutes?r.pickRate.toFixed(2):'—'}</td>
+        <td>${formatPct(r.pickWoW)}</td>
+        <td class="num">${n(r.packUnits)}</td>
+        <td>${minutes(r.packMinutes)}</td>
+        <td>${r.packMinutes?r.packRate.toFixed(2):'—'}</td>
+        <td>${formatPct(r.packWoW)}</td>
+        <td class="num">${n(r.totalUnits)}</td>
+        <td>${formatPct(r.unitsChange)}</td>
+      </tr>`).join(''):'<tr><td colspan="11" class="sub">No data available for the selected range.</td></tr>')+
+      '</tbody>';
+
+    // Build People Overview from the original per-person job metrics.
+    // The main trend rows are aggregated by team, so they intentionally do
+    // not retain individual names. People Overview needs the contributor
+    // metrics directly from each job.
+    const peopleRows=[];
+    jobs.forEach(j=>{
+      const date=j.date;
+      if(!date||date<start||date>end)return;
+
+      const pick=trendContributors(j,'pick');
+      const pack=trendContributors(j,'pack');
+
+      if(selectedPerson){
+        const p=pick.find(x=>x.name===selectedPerson)||{units:0,minutes:0};
+        const k=pack.find(x=>x.name===selectedPerson)||{units:0,minutes:0};
+        if(p.units||p.minutes||k.units||k.minutes){
+          peopleRows.push({
+            user:selectedPerson,
+            pick:{units:p.units,minutes:p.minutes},
+            pack:{units:k.units,minutes:k.minutes}
+          });
+        }
+      }else{
+        const names=new Set([
+          ...pick.map(x=>x.name),
+          ...pack.map(x=>x.name)
+        ]);
+        names.forEach(name=>{
+          const p=pick.find(x=>x.name===name)||{units:0,minutes:0};
+          const k=pack.find(x=>x.name===name)||{units:0,minutes:0};
+          peopleRows.push({
+            user:name,
+            pick:{units:p.units,minutes:p.minutes},
+            pack:{units:k.units,minutes:k.minutes}
+          });
+        });
+      }
+    });
+
+    renderTrendPeople(peopleRows);
+    generateTrendReportCards();
+
+  }catch(e){
+    console.error('Trends load failed',e);
+    $('trendMetrics').innerHTML=`<div class="card"><b>Trends could not load.</b><div class="sub">${esc(e.message||e)}</div></div>`;
+    $('pickTrendChart').innerHTML='';
+    $('packTrendChart').innerHTML='';
+    $('workloadTrendChart').innerHTML='';
+    $('trendTable').innerHTML='';
+    const p=$('trendPeopleTable');
+    if(p)p.innerHTML='<tbody><tr><td class="sub">Trends data could not be loaded.</td></tr></tbody>';
+    const rc=$('trendReportCards');
+    if(rc)rc.innerHTML='';
+  }
+}
+
+
+
+function trendPctValue(value){
+  return value==null||!isFinite(value)?'—':value.toFixed(1)+'%';
+}
+
+function generateTrendReportCards(){
+  const table=document.getElementById('trendPeopleTable');
+  const target=document.getElementById('trendReportCards');
+  if(!table||!target)return;
+
+  // Rebuild from the visible People Overview rows so the cards always match
+  // the currently selected Trends range/person filter.
+  const rows=[...table.querySelectorAll('tbody tr')];
+  if(!rows.length||!rows[0].querySelector('td')){
+    target.innerHTML='<div class="sub">No people data available for the selected Trends range.</div>';
+    return;
+  }
+
+  const cards=rows.map(tr=>{
+    const c=tr.querySelectorAll('td');
+    if(c.length<14)return '';
+    const name=c[0].innerText.trim();
+    const pickUnits=c[1].innerText.trim();
+    const pickTime=c[2].innerText.trim();
+    const pickUnitShare=c[3].innerText.trim();
+    const pickTimeShare=c[4].innerText.trim();
+    const packUnits=c[5].innerText.trim();
+    const packTime=c[6].innerText.trim();
+    const packUnitShare=c[7].innerText.trim();
+    const packTimeShare=c[8].innerText.trim();
+    const totalUnits=c[9].innerText.trim();
+    const totalTime=c[10].innerText.trim();
+    const overallUnitShare=c[11].innerText.trim();
+    const overallTimeShare=c[12].innerText.trim();
+    const unitsHour=c[13].innerText.trim();
+
+    const pu=parseFloat(pickUnitShare)||0;
+    const pt=parseFloat(pickTimeShare)||0;
+    const ku=parseFloat(packUnitShare)||0;
+    const kt=parseFloat(packTimeShare)||0;
+    const ou=parseFloat(overallUnitShare)||0;
+    const ot=parseFloat(overallTimeShare)||0;
+    const overallGap=ou-ot;
+
+    let assessment='Balanced workload';
+    if(overallGap>=5)assessment='Higher unit share than time share';
+    else if(overallGap<=-5)assessment='Higher time share than unit share';
+
+    return `<div class="card" style="margin:0;border-radius:16px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <div>
+          <div class="sub">Performance Report</div>
+          <h2 style="margin:3px 0 0">${esc(name)}</h2>
+        </div>
+        <div class="pill">${esc(assessment)}</div>
+      </div>
+
+      <div class="grid" style="margin-top:14px">
+        <div class="metric card" style="margin:0">
+          <div class="label">Total Units</div>
+          <div class="value" style="font-size:24px">${esc(totalUnits)}</div>
+        </div>
+        <div class="metric card" style="margin:0">
+          <div class="label">Units / Minute</div>
+          <div class="value" style="font-size:24px">${esc(unitsHour)}</div>
+        </div>
+        <div class="metric card" style="margin:0">
+          <div class="label">Total Processing Time</div>
+          <div class="value" style="font-size:24px">${esc(totalTime)}</div>
+        </div>
+      </div>
+
+      <h3 style="margin:18px 0 8px">Picking</h3>
+      <div class="tablewrap" style="max-height:none">
+        <table style="min-width:0">
+          <tbody>
+            <tr><td>Units</td><td class="num"><b>${esc(pickUnits)}</b></td></tr>
+            <tr><td>Processing Time</td><td class="num">${esc(pickTime)}</td></tr>
+            <tr><td>Unit Share</td><td class="num">${esc(pickUnitShare)}</td></tr>
+            <tr><td>Time Share</td><td class="num">${esc(pickTimeShare)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin:18px 0 8px">Packing</h3>
+      <div class="tablewrap" style="max-height:none">
+        <table style="min-width:0">
+          <tbody>
+            <tr><td>Units</td><td class="num"><b>${esc(packUnits)}</b></td></tr>
+            <tr><td>Processing Time</td><td class="num">${esc(packTime)}</td></tr>
+            <tr><td>Unit Share</td><td class="num">${esc(packUnitShare)}</td></tr>
+            <tr><td>Time Share</td><td class="num">${esc(packTimeShare)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;border:1px solid #334155;border-radius:12px">
+        <b>Overall workload vs time</b>
+        <div class="sub" style="margin-top:5px">
+          Unit share ${esc(overallUnitShare)} vs time share ${esc(overallTimeShare)}
+          — ${overallGap>=0?'+':''}${overallGap.toFixed(1)} percentage points.
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  target.innerHTML=cards||'<div class="sub">No people data available for the selected Trends range.</div>';
+}
+
+
+function renderTrendPeople(rows){
+  const el=document.getElementById('trendPeopleTable');
+  if(!el) return;
+
+  const people={};
+  rows.forEach(r=>{
+    const add=(name,pick,pack)=>{
+      if(!name) return;
+      if(!people[name]) people[name]={
+        name,
+        pickUnits:0,pickMinutes:0,
+        packUnits:0,packMinutes:0
+      };
+      people[name].pickUnits+=pick.units||0;
+      people[name].pickMinutes+=pick.minutes||0;
+      people[name].packUnits+=pack.units||0;
+      people[name].packMinutes+=pack.minutes||0;
+    };
+    add(r.user||r.username||r.person||'', r.pick||{}, r.pack||{});
+  });
+
+  const list=Object.values(people).map(x=>{
+    x.totalUnits=x.pickUnits+x.packUnits;
+    x.totalMinutes=x.pickMinutes+x.packMinutes;
+    x.unitsMinute=x.totalMinutes>0 ? x.totalUnits/x.totalMinutes : null;
+    return x;
+  }).sort((a,b)=>b.totalUnits-a.totalUnits);
+
+  if(!list.length){
+    el.innerHTML='<tbody><tr><td colspan="14" class="muted">No people data for the selected Trends range.</td></tr></tbody>';
+    return;
+  }
+
+  const pickTotal=list.reduce((s,x)=>s+x.pickUnits,0);
+  const pickTimeTotal=list.reduce((s,x)=>s+x.pickMinutes,0);
+  const packTotal=list.reduce((s,x)=>s+x.packUnits,0);
+  const packTimeTotal=list.reduce((s,x)=>s+x.packMinutes,0);
+  const overallTotal=list.reduce((s,x)=>s+x.totalUnits,0);
+  const overallTimeTotal=list.reduce((s,x)=>s+x.totalMinutes,0);
+
+  el.innerHTML='<thead><tr>'+
+    '<th>Person</th>'+
+    '<th>Pick Units</th>'+
+    '<th>Pick Time</th>'+
+    '<th>Pick Unit Share</th>'+
+    '<th>Pick Time Share</th>'+
+    '<th>Pack Units</th>'+
+    '<th>Pack Time</th>'+
+    '<th>Pack Unit Share</th>'+
+    '<th>Pack Time Share</th>'+
+    '<th>Total Units</th>'+
+    '<th>Total Time</th>'+
+    '<th>Overall Unit Share</th>'+
+    '<th>Overall Time Share</th>'+
+    '<th>Units/Minute</th>'+
+    '</tr></thead><tbody>'+
+    list.map(x=>`<tr>
+      <td><b>${esc(x.name)}</b></td>
+      <td class="num">${n(x.pickUnits)}</td>
+      <td>${minutes(x.pickMinutes)}</td>
+      <td>${pickTotal?((x.pickUnits/pickTotal)*100).toFixed(1):'0.0'}%</td>
+      <td>${pickTimeTotal?((x.pickMinutes/pickTimeTotal)*100).toFixed(1):'0.0'}%</td>
+      <td class="num">${n(x.packUnits)}</td>
+      <td>${minutes(x.packMinutes)}</td>
+      <td>${packTotal?((x.packUnits/packTotal)*100).toFixed(1):'0.0'}%</td>
+      <td>${packTimeTotal?((x.packMinutes/packTimeTotal)*100).toFixed(1):'0.0'}%</td>
+      <td class="num">${n(x.totalUnits)}</td>
+      <td>${minutes(x.totalMinutes)}</td>
+      <td>${overallTotal?((x.totalUnits/overallTotal)*100).toFixed(1):'0.0'}%</td>
+      <td>${overallTimeTotal?((x.totalMinutes/overallTimeTotal)*100).toFixed(1):'0.0'}%</td>
+      <td class="num">${x.unitsMinute!=null?x.unitsMinute.toFixed(2):'—'}</td>
+    </tr>`).join('')+
+    '</tbody>';
+}
+function formatPct(v){return v==null||!isFinite(v)?'—':(v>0?'+':'')+v.toFixed(1)+'%'}
+
+
 async function getHistoricalStaffingRates(){
   const snap=await db.collection(C.jobs).get();
   const pick=[],pack=[];
@@ -945,41 +1682,6 @@ function staffingCard(title,units,rate,shiftMinutes){
     <p><b>People required:</b> ${people}</p>
     <p><b>Expected elapsed time:</b> ${hours}h ${String(mins).padStart(2,'0')}m</p>
     <p class="sub">This assumes the people work in parallel at the historical rate and have ${shiftMinutes/60} productive hours available.</p>`;
-}
-
-async function calculateStaffing(){
-  const units=Math.floor(Number($('staffUnits').value));
-  const hours=Number($('staffHours').value);
-  if(!Number.isFinite(units)||units<1){alert('Enter the total units to be despatched.');return}
-  if(!Number.isFinite(hours)||hours<=0){alert('Enter available shift hours.');return}
-  const shiftMinutes=hours*60;
-  try{
-    $('staffingBasis').textContent='Loading historical Pick / Pack performance...';
-    const h=await getHistoricalStaffingRates();
-    const p=h.pick.median, k=h.pack.median;
-    const pPeople=p?Math.max(1,Math.ceil((units/p)/shiftMinutes)):0;
-    const kPeople=k?Math.max(1,Math.ceil((units/k)/shiftMinutes)):0;
-    const pTime=p&&pPeople?(units/p)/pPeople:0;
-    const kTime=k&&kPeople?(units/k)/kPeople:0;
-    const fmt=t=>{const hh=Math.floor(t/60),mm=Math.round(t%60);return hh?`${hh}h ${String(mm).padStart(2,'0')}m`:`${mm}m`};
-    $('staffingMetrics').innerHTML=[
-      ['Units to Despatch',n(units)],
-      ['Productive Shift',hours.toFixed(2)+' h'],
-      ['Pick People',pPeople||'—'],
-      ['Pack People',kPeople||'—'],
-      ['Pick Time',p?fmt(pTime):'—'],
-      ['Pack Time',k?fmt(kTime):'—']
-    ].map(x=>`<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
-    $('pickStaffResult').innerHTML=staffingCard('Picking',units,p,shiftMinutes);
-    $('packStaffResult').innerHTML=staffingCard('Packing',units,k,shiftMinutes);
-    $('staffingBasis').innerHTML=`<p>Based on <b>${n(h.pick.samples)}</b> measurable historical Pick contributor rates and <b>${n(h.pack.samples)}</b> measurable historical Pack contributor rates.</p>
-      <p>The calculator uses the <b>median historical units/minute per person</b> rather than the average, so unusually fast or slow transactions have less influence.</p>
-      <p class="sub">The calculation is a planning estimate. It assumes the historical rate is representative of the work being planned and that pickers/packers can work in parallel without becoming constrained by cages, scanners, tables, replenishment, receiving, or other warehouse activity.</p>`;
-  }catch(e){
-    console.error('Staffing calculation failed',e);
-    $('staffingBasis').textContent='Unable to load historical data: '+e.message;
-    alert('Staffing calculation failed: '+e.message);
-  }
 }
 
 async function init(){
