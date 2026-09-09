@@ -1462,6 +1462,22 @@ function trendPctValue(value){
   return value==null||!isFinite(value)?'—':value.toFixed(1)+'%';
 }
 
+function reportCardGrade(unitShare,timeShare){
+  const u=parseFloat(unitShare)||0;
+  const t=parseFloat(timeShare)||0;
+  const advantage=u-t;
+
+  // Grade the person's contribution primarily from UNIT SHARE.
+  // Processing-time share is a separate efficiency/workload indicator:
+  // doing a large share of units in a smaller share of time is positive.
+  if(u>=20) return {grade:'A',desc:'At least double the 10% unit-share target',advantage};
+  if(u>=15) return {grade:'B',desc:'At least 50% above the 10% unit-share target',advantage};
+  if(u>=10) return {grade:'C',desc:'Meets the 10% unit-share target',advantage};
+  if(u>=9) return {grade:'D',desc:'Nearly making the 10% unit-share target',advantage};
+  if(u>=8) return {grade:'E',desc:'Reasonable unit contribution, but below the 10% target',advantage};
+  return {grade:'F',desc:'Below 10% unit share',advantage};
+}
+
 function generateTrendReportCards(){
   const table=document.getElementById('trendPeopleTable');
   const target=document.getElementById('trendReportCards');
@@ -1500,10 +1516,11 @@ function generateTrendReportCards(){
     const ou=parseFloat(overallUnitShare)||0;
     const ot=parseFloat(overallTimeShare)||0;
     const overallGap=ou-ot;
+    const grade=reportCardGrade(ou,ot);
 
     let assessment='Balanced workload';
-    if(overallGap>=5)assessment='Higher unit share than time share';
-    else if(overallGap<=-5)assessment='Higher time share than unit share';
+    if(overallGap>=5)assessment='High contribution for recorded time';
+    else if(overallGap<=-5)assessment='Time share higher than unit share';
 
     return `<div class="card" style="margin:0;border-radius:16px">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
@@ -1511,7 +1528,10 @@ function generateTrendReportCards(){
           <div class="sub">Performance Report</div>
           <h2 style="margin:3px 0 0">${esc(name)}</h2>
         </div>
-        <div class="pill">${esc(assessment)}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          <div class="pill" style="font-size:24px;font-weight:900;padding:8px 14px">${grade.grade}</div>
+          <div class="pill">${esc(assessment)}</div>
+        </div>
       </div>
 
       <div class="grid" style="margin-top:14px">
@@ -1558,6 +1578,11 @@ function generateTrendReportCards(){
         <div class="sub" style="margin-top:5px">
           Unit share ${esc(overallUnitShare)} vs time share ${esc(overallTimeShare)}
           — ${overallGap>=0?'+':''}${overallGap.toFixed(1)} percentage points.
+        </div>
+        <div style="margin-top:8px"><b>Grade ${grade.grade}:</b> ${esc(grade.desc)}.</div>
+        <div class="sub" style="margin-top:5px">
+          The grade is based on <b>unit contribution</b>. A positive unit-vs-time gap means the person processed
+          more units than their share of recorded processing time.
         </div>
       </div>
     </div>`;
