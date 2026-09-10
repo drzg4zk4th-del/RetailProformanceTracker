@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Billini Pick / Pack Performance</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial;background:#020817;color:#fff}nav{padding:12px;background:#081120;border-bottom:1px solid #1e293b;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:9}button,input,select{background:#0f172a;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px}button{cursor:pointer}.primary{background:#2563eb}.danger{background:#7f1d1d;border-color:#991b1b;color:#fff}main{max-width:1800px;margin:auto;padding:22px}.page{display:none}.page.active{display:block}.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.metric .label{color:#94a3b8;font-size:13px}.metric .value{font-size:30px;font-weight:800;margin-top:8px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:5px;color:#cbd5e1;font-size:12px}.tablewrap{overflow:auto;max-height:65vh;border:1px solid #1e293b;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1100px}th,td{padding:11px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#0b1324}.num{text-align:right}.sub{color:#94a3b8}.rank{display:grid;grid-template-columns:45px 1fr 110px 100px;padding:11px;border-bottom:1px solid #1e293b;gap:8px}.ok{color:#4ade80}.warn{color:#facc15}.bad{color:#f87171}#drop,#wmsDrop{padding:32px;text-align:center;border:2px dashed #334155;border-radius:18px}.card input[type="checkbox"]{width:18px;height:18px;accent-color:#2563eb}#drop.drag,#wmsDrop.drag{border-color:#38bdf8;background:#0b1b32}.pill{background:#1e293b;padding:6px 10px;border-radius:99px}
@@ -916,32 +916,136 @@ function renderDailyOrderTimeline(rows){
 
 async function exportOrderTimelinePDF(){
   const el=$('jobsTimeline');
-  if(!el || !el.querySelector('.order-day-card')){alert('Load a date range with order activity first.');return;}
-  if(typeof html2pdf==='undefined'){alert('PDF export library is not available. Please refresh the page and try again.');return;}
+  const dayCards=[...el.querySelectorAll('.order-day-card')];
+  if(!dayCards.length){alert('Load a date range with order activity first.');return;}
   const btn=el.querySelector('.timeline-export-head button');
   const oldText=btn?.textContent;
   try{
     if(btn){btn.disabled=true;btn.textContent='Creating PDF...';}
+
     const start=$('jobsStartDate')?.value||'timeline';
     const end=$('jobsEndDate')?.value||start;
     const filename=`Billini_Order_Timeline_${start}_to_${end}.pdf`;
-    await html2pdf().set({
-      margin:[8,8,8,8],
-      filename,
-      image:{type:'jpeg',quality:0.95},
-      html2canvas:{scale:2,useCORS:true,backgroundColor:'#0f172a',logging:false},
-      jsPDF:{unit:'mm',format:'a4',orientation:'landscape',compress:true},
-      pagebreak:{mode:['css','legacy'],avoid:['.order-day-card','.timeline-order']}
-    }).from(el).toPdf().get('pdf').then(pdf=>{
-      // Keep the timeline readable across pages while preserving the existing dark dashboard styling.
-      const pages=pdf.internal.getNumberOfPages();
-      for(let i=1;i<=pages;i++){
-        pdf.setPage(i);
-        pdf.setFontSize(7);
-        pdf.setTextColor(148,163,184);
-        pdf.text(`Billini Order Flow Timeline  |  ${start} to ${end}  |  Page ${i} of ${pages}`,8,202);
+    const jsPDFCtor=window.jspdf?.jsPDF;
+    if(!jsPDFCtor){throw new Error('The PDF library is not available. Please refresh the page and try again.');}
+
+    // Build a true vector PDF rather than printing screenshots of the HTML.
+    // One custom-height page contains the complete data pull, regardless of order count.
+    const rowsByDay=[];
+    dayCards.forEach(card=>{
+      const date=card.querySelector('.timeline-day-head h2')?.textContent?.trim()||'';
+      const count=card.querySelector('.timeline-day-head .sub')?.textContent?.trim()||'';
+      const rows=[...card.querySelectorAll('.timeline-order')].map(row=>{
+        const label=row.querySelector('.timeline-order-label');
+        const order=label?.querySelector('b')?.textContent?.trim()||'Order';
+        const store=label?.querySelector('span')?.textContent?.trim()||'';
+        const units=label?.querySelector('small')?.textContent?.trim()||'';
+        const bars=[...row.querySelectorAll('.timeline-bar')];
+        const pickBar=row.querySelector('.timeline-bar.pick');
+        const packBar=row.querySelector('.timeline-bar.pack');
+        const people=[...row.querySelectorAll('.timeline-people > div')].map(x=>x.textContent.trim());
+        const pickTimes=pickBar?.querySelector('span')?.textContent?.trim()||'—';
+        const packTimes=packBar?.querySelector('span')?.textContent?.trim()||'—';
+        const pickUsers=(people.find(x=>x.startsWith('Pick'))||'Pick —').replace(/^Pick\s*/,'');
+        const packUsers=(people.find(x=>x.startsWith('Pack'))||'Pack —').replace(/^Pack\s*/,'');
+        const pickStyle=pickBar?pickBar.getAttribute('style')||'':'';
+        const packStyle=packBar?packBar.getAttribute('style')||'':'';
+        const pct=(style,name)=>{
+          const m=style.match(new RegExp(name+'\\s*:\\s*([0-9.]+)%')); return m?Number(m[1]):0;
+        };
+        const width=(style)=>{const m=style.match(/width:\s*([0-9.]+)%/);return m?Number(m[1]):0;};
+        return {order,store,units,pickUsers,packUsers,pickTimes,packTimes,
+          pickLeft:pct(pickStyle,'left'),pickWidth:width(pickStyle),
+          packLeft:pct(packStyle,'left'),packWidth:width(packStyle)};
+      });
+      rowsByDay.push({date,count,rows});
+    });
+
+    const totalRows=rowsByDay.reduce((sum,d)=>sum+d.rows.length,0);
+    // 420mm wide gives the timeline and people columns plenty of room.
+    // Height grows with the data so the entire pull is genuinely one PDF page.
+    const width=420;
+    const rowH=8.5;
+    const dayHeadH=18;
+    const titleH=28;
+    const footerH=10;
+    const height=Math.max(210, titleH + rowsByDay.reduce((sum,d)=>sum+dayHeadH+(d.rows.length*rowH)+10,sum:0) + footerH);
+    const pdf=new jsPDFCtor({orientation:'landscape',unit:'mm',format:[width,height],compress:true});
+
+    // Background and title.
+    pdf.setFillColor(15,23,42); pdf.rect(0,0,width,height,'F');
+    pdf.setTextColor(248,250,252); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
+    pdf.text('Billini Order Flow Timeline',12,12);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(148,163,184);
+    pdf.text(`Pick and Pack start-to-finish by order  |  ${start} to ${end}  |  ${totalRows} orders`,12,19);
+
+    const left=12, labelW=76, trackW=245, peopleW=75, top=31;
+    const trackX=left+labelW;
+    const peopleX=trackX+trackW+7;
+    let y=top;
+
+    rowsByDay.forEach(day=>{
+      // Day heading.
+      pdf.setFillColor(30,41,59); pdf.roundedRect(left,y-5,width-left-12,12,2,2,'F');
+      pdf.setTextColor(248,250,252); pdf.setFont('helvetica','bold'); pdf.setFontSize(10);
+      pdf.text(day.date,left+4,y+3);
+      pdf.setFont('helvetica','normal'); pdf.setFontSize(7); pdf.setTextColor(148,163,184);
+      pdf.text(day.count, left+35,y+3);
+      y+=12;
+
+      // Timeline scale: 07:00–16:00.
+      pdf.setFontSize(6); pdf.setTextColor(100,116,139);
+      for(let h=0;h<=9;h++){
+        const x=trackX+(trackW*h/9);
+        pdf.setDrawColor(51,65,85); pdf.setLineWidth(0.15);
+        pdf.line(x,y-2,x,y+day.rows.length*rowH-1);
+        pdf.text(String(7+h).padStart(2,'0')+':00',x,y-4,{align:h===0?'left':h===9?'right':'center'});
       }
-    }).save();
+      y+=3;
+
+      day.rows.forEach((r,idx)=>{
+        const cy=y+rowH/2;
+        if(idx%2===0){pdf.setFillColor(17,29,48);pdf.rect(left,y,width-left-12,rowH,'F');}
+        pdf.setDrawColor(30,41,59);pdf.setLineWidth(0.15);pdf.line(left,y+rowH,width-12,y+rowH);
+
+        pdf.setTextColor(241,245,249);pdf.setFont('helvetica','bold');pdf.setFontSize(7);
+        pdf.text(r.order.substring(0,28),left,cy-1.5);
+        pdf.setTextColor(148,163,184);pdf.setFont('helvetica','normal');pdf.setFontSize(5.7);
+        pdf.text(`${r.store}  |  ${r.units}`,left,cy+2.7);
+
+        // Bars are vector rectangles. Picking = cyan, Packing = purple.
+        if(r.pickWidth>0){
+          pdf.setFillColor(56,189,248);
+          pdf.roundedRect(trackX+(r.pickLeft/100)*trackW,cy-2.2,Math.max(0.8,(r.pickWidth/100)*trackW),2.5,1,1,'F');
+          pdf.setTextColor(125,211,252);pdf.setFontSize(5.2);
+          const tx=trackX+(r.pickLeft/100)*trackW;
+          pdf.text(r.pickTimes,Math.min(tx+(r.pickWidth/100)*trackW+1,trackX+trackW),cy-2.8,{align:(tx+(r.pickWidth/100)*trackW+28>trackX+trackW?'right':'left')});
+        }
+        if(r.packWidth>0){
+          pdf.setFillColor(167,139,250);
+          pdf.roundedRect(trackX+(r.packLeft/100)*trackW,cy+0.5,Math.max(0.8,(r.packWidth/100)*trackW),2.5,1,1,'F');
+          pdf.setTextColor(196,181,253);pdf.setFontSize(5.2);
+          const tx=trackX+(r.packLeft/100)*trackW;
+          pdf.text(r.packTimes,Math.min(tx+(r.packWidth/100)*trackW+1,trackX+trackW),cy+6.0,{align:(tx+(r.packWidth/100)*trackW+28>trackX+trackW?'right':'left')});
+        }
+
+        pdf.setTextColor(203,213,225);pdf.setFont('helvetica','normal');pdf.setFontSize(5.7);
+        pdf.text(`Pick: ${r.pickUsers||'—'}`,peopleX,cy-1.5,{maxWidth:peopleW});
+        pdf.text(`Pack: ${r.packUsers||'—'}`,peopleX,cy+3.0,{maxWidth:peopleW});
+        y+=rowH;
+      });
+      y+=10;
+    });
+
+    // Legend + footer on the same single page.
+    const fy=height-7;
+    pdf.setFillColor(56,189,248);pdf.roundedRect(left,fy-3,5,2.5,1,1,'F');
+    pdf.setTextColor(148,163,184);pdf.setFontSize(6);pdf.text('Picking',left+7,fy-1);
+    pdf.setFillColor(167,139,250);pdf.roundedRect(left+27,fy-3,5,2.5,1,1,'F');
+    pdf.text('Packing',left+34,fy-1);
+    pdf.text('Single-page vector report • generated from the loaded order timeline',width-12,fy-1,{align:'right'});
+
+    pdf.save(filename);
   }catch(e){console.error('Timeline PDF export failed',e);alert('Could not export the timeline PDF: '+e.message)}
   finally{if(btn){btn.disabled=false;btn.textContent=oldText||'Export Timeline PDF';}}
 }
