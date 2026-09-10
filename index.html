@@ -6,6 +6,8 @@
 
 .export-note{color:#94a3b8;font-size:12px;margin-left:6px}
 .order-day-card{overflow:hidden}
+.timeline-export-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #1e293b}.timeline-export-head>div{display:flex;align-items:baseline;gap:12px}.timeline-export-head b{font-size:18px}
+
 .timeline-day-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
 .timeline-day-head>div:first-child{display:flex;align-items:baseline;gap:12px}
 .timeline-legend{display:flex;gap:16px;color:#cbd5e1;font-size:12px}
@@ -868,7 +870,7 @@ function renderDailyOrderTimeline(rows){
   const groups={};
   rows.forEach(r=>(groups[r.date]??=[]).push(r));
 
-  $('jobsTimeline').innerHTML=Object.entries(groups).map(([date,items])=>{
+  $('jobsTimeline').innerHTML=`<div class="timeline-export-head"><div><b>Daily Order Flow Timeline</b><span class="sub">Pick and Pack start-to-finish by order</span></div><button class="primary" onclick="exportOrderTimelineImage()">Export Timeline Image</button></div>` + Object.entries(groups).map(([date,items])=>{ 
     const dayStart=new Date(date+'T07:00:00');
     const dayEnd=new Date(date+'T16:00:00');
     const total=dayEnd-dayStart;
@@ -910,6 +912,25 @@ function renderDailyOrderTimeline(rows){
       <div>${orderRows}</div>
     </div>`;
   }).join('');
+}
+
+async function exportOrderTimelineImage(){
+  const el=$('jobsTimeline');
+  if(!el || !el.querySelector('.order-day-card')){alert('Load a date range with order activity first.');return;}
+  if(typeof html2canvas==='undefined'){alert('Image export library is not available. Please refresh the page and try again.');return;}
+  const btn=el.querySelector('.timeline-export-head button');
+  const oldText=btn?.textContent;
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Creating Image...';}
+    const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#0f172a',logging:false,windowWidth:el.scrollWidth+40,windowHeight:el.scrollHeight+40});
+    const link=document.createElement('a');
+    const start=$('jobsStartDate')?.value||'timeline';
+    const end=$('jobsEndDate')?.value||start;
+    link.download=`Billini_Order_Timeline_${start}_to_${end}.png`;
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+  }catch(e){console.error('Timeline image export failed',e);alert('Could not export the timeline image: '+e.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent=oldText||'Export Timeline Image';}}
 }
 
 async function jobsPage(){
