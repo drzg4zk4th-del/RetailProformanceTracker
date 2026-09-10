@@ -969,7 +969,7 @@ async function exportOrderTimelinePDF(){
     const dayHeadH=18;
     const titleH=28;
     const footerH=10;
-    const height=Math.max(210, titleH + rowsByDay.reduce((sum,d)=>sum+dayHeadH+(d.rows.length*rowH)+10,sum:0) + footerH);
+    const height=Math.max(210, titleH + rowsByDay.reduce((sum,d)=>sum+dayHeadH+(d.rows.length*rowH)+10,0) + footerH);
     const pdf=new jsPDFCtor({orientation:'landscape',unit:'mm',format:[width,height],compress:true});
 
     // Background and title.
