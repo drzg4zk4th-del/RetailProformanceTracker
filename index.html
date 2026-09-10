@@ -5,6 +5,31 @@
 *{box-sizing:border-box}body{margin:0;font-family:Arial;background:#020817;color:#fff}nav{padding:12px;background:#081120;border-bottom:1px solid #1e293b;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:9}button,input,select{background:#0f172a;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px}button{cursor:pointer}.primary{background:#2563eb}.danger{background:#7f1d1d;border-color:#991b1b;color:#fff}main{max-width:1800px;margin:auto;padding:22px}.page{display:none}.page.active{display:block}.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.metric .label{color:#94a3b8;font-size:13px}.metric .value{font-size:30px;font-weight:800;margin-top:8px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar label{display:flex;flex-direction:column;gap:5px;color:#cbd5e1;font-size:12px}.tablewrap{overflow:auto;max-height:65vh;border:1px solid #1e293b;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1100px}th,td{padding:11px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#0b1324}.num{text-align:right}.sub{color:#94a3b8}.rank{display:grid;grid-template-columns:45px 1fr 110px 100px;padding:11px;border-bottom:1px solid #1e293b;gap:8px}.ok{color:#4ade80}.warn{color:#facc15}.bad{color:#f87171}#drop,#wmsDrop{padding:32px;text-align:center;border:2px dashed #334155;border-radius:18px}.card input[type="checkbox"]{width:18px;height:18px;accent-color:#2563eb}#drop.drag,#wmsDrop.drag{border-color:#38bdf8;background:#0b1b32}.pill{background:#1e293b;padding:6px 10px;border-radius:99px}
 
 .export-note{color:#94a3b8;font-size:12px;margin-left:6px}
+.order-day-card{overflow:hidden}
+.timeline-day-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.timeline-day-head>div:first-child{display:flex;align-items:baseline;gap:12px}
+.timeline-legend{display:flex;gap:16px;color:#cbd5e1;font-size:12px}
+.timeline-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;background:#38bdf8}
+.packdot{background:#a78bfa}
+.timeline-scale{display:grid;grid-template-columns:repeat(10,1fr);margin-left:220px;color:#64748b;font-size:11px;border-bottom:1px solid #1e293b;padding-bottom:6px}
+.timeline-scale span{text-align:left}
+.timeline-order{display:grid;grid-template-columns:220px 1fr 270px;gap:12px;align-items:center;min-height:58px;border-bottom:1px solid #1e293b}
+.timeline-order:last-child{border-bottom:0}
+.timeline-order-label{display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.timeline-order-label b{font-size:13px}
+.timeline-order-label span,.timeline-order-label small{color:#94a3b8;font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.timeline-track{height:34px;position:relative;background:repeating-linear-gradient(to right,transparent 0,transparent calc(11.111% - 1px),#1e293b calc(11.111% - 1px),#1e293b 11.111%);border-radius:8px}
+.timeline-bar{position:absolute;top:4px;height:12px;border-radius:6px;min-width:3px;overflow:visible;white-space:nowrap}
+.timeline-bar span{position:absolute;top:14px;font-size:9px;color:#94a3b8;left:0}
+.timeline-bar.pick{background:#38bdf8}
+.timeline-bar.pack{background:#a78bfa;top:20px}
+.timeline-people{font-size:10px;color:#94a3b8;line-height:1.5}
+.timeline-people b{color:#e2e8f0}
+@media(max-width:1100px){
+ .timeline-scale{margin-left:160px}
+ .timeline-order{grid-template-columns:160px 1fr 190px}
+}
+
 @media print{
   nav{display:none!important}
   body{background:#fff!important;color:#000!important}
@@ -32,7 +57,7 @@
 <button onclick="saveSnapshot()">Save Snapshot to Firebase</button>
 </div><div id="dailyMetrics" class="grid"></div><div class="card"><h2>Daily Individual Result</h2><div class="tablewrap"><table id="dailyTable"></table></div></div><div class="grid"><div class="card"><h2>Daily Pick Ranking</h2><div id="dailyPick"></div></div><div class="card"><h2>Daily Pack Ranking</h2><div id="dailyPack"></div></div></div></section>
 <section id="jobs" class="page"><div class="card"><h2>Jobs / Orders — Multi-user attribution</h2><div class="sub">A job can have multiple Pickers and/or Packers. Units are credited only to the person who performed the individual transaction.</div></div>
-<div class="card toolbar"><label>Start Date<input type="date" id="jobsStartDate"></label><label>End Date<input type="date" id="jobsEndDate"></label><label>Store<select id="jobsStore"><option value="">All Stores</option></select></label><button class="primary" onclick="jobsPage()">Load Range</button></div><div class="card"><div class="tablewrap"><table id="jobsTable"></table></div></div></section>
+<div class="card toolbar"><label>Start Date<input type="date" id="jobsStartDate"></label><label>End Date<input type="date" id="jobsEndDate"></label><label>Store<select id="jobsStore"><option value="">All Stores</option></select></label><button class="primary" onclick="jobsPage()">Load Range</button></div><div id="jobsTimeline" class="card"><div class="sub">Load a date range to see the visual Pick / Pack timeline.</div></div><div class="card"><div class="tablewrap"><table id="jobsTable"></table></div></div></section>
 <section id="reconciliation" class="page">
 <div class="card toolbar">
   <label>Start Date<input type="date" id="reconStartDate"></label>
@@ -777,11 +802,128 @@ async function reconciliationPage(){
   }
 }
 
+async function eventsForDays(days){
+  if(!days.length)return [];
+  if(days.length>30)throw Error('Please select a range of 30 days or less.');
+  const out=[],seen=new Set();
+  try{
+    const s=await db.collection(C.events).where('dates','array-contains-any',days).get();
+    s.docs.forEach(d=>{
+      const x=d.data(),arr=Array.isArray(x.events)?x.events:[x];
+      arr.forEach(e=>{
+        const r={...e,fileId:x.fileId||'',store:x.store||'',fileName:x.fileName||''};
+        r.timestamp=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp);
+        r.date=r.date||dk(r.timestamp);
+        const key=d.id+'_'+r.timestamp.getTime()+'_'+r.action+'_'+r.user+'_'+r.message;
+        if(!seen.has(key)&&days.includes(r.date)){seen.add(key);out.push(r);}
+      });
+    });
+  }catch(e){console.warn('Event timeline load failed',e)}
+  return out;
+}
+
+function visualOrderTimeline(events,jobs){
+  const byFile={};
+  events.forEach(e=>(byFile[e.fileId]??=[]).push(e));
+  const jobMap=new Map();
+  jobs.forEach(j=>jobMap.set((j.fileId||'')+'|'+j.jobNo,j));
+
+  const rows=[];
+  Object.entries(byFile).forEach(([fileId,rowsForFile])=>{
+    const store=rowsForFile[0]?.store||'';
+    const fileName=rowsForFile[0]?.fileName||'';
+    makeJobs(store,fileName,rowsForFile).forEach(j=>{
+      const job=jobMap.get(fileId+'|'+j.jobNo)||j;
+      const picks=(j.picks||[]).sort((a,b)=>a.timestamp-b.timestamp);
+      const packs=(j.packs||[]).sort((a,b)=>a.timestamp-b.timestamp);
+      if(!picks.length&&!packs.length)return;
+      const pickStart=picks[0]?.timestamp||j.statusPickStart;
+      const pickEnd=picks.at(-1)?.timestamp||pickStart;
+      const packStart=packs[0]?.timestamp||j.packStart;
+      const packEnd=packs.at(-1)?.timestamp||j.complete||packStart;
+      rows.push({
+        ...job,
+        fileId,
+        jobNo:j.jobNo,
+        store:j.store||store,
+        date:j.date,
+        pickStart,pickEnd,packStart,packEnd,
+        pickUsers:[...new Set(picks.map(x=>x.user).filter(Boolean))],
+        packUsers:[...new Set(packs.map(x=>x.user).filter(Boolean))]
+      });
+    });
+  });
+  return rows.sort((a,b)=>(a.pickStart||a.packStart)-(b.pickStart||b.packStart));
+}
+
+function timelineTime(d){return d?d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}):'—'}
+function timelineMins(a,b){return a&&b?Math.max(0,(b-a)/60000):0}
+
+function renderDailyOrderTimeline(rows){
+  if(!rows.length){
+    $('jobsTimeline').innerHTML='<div class="sub">No Pick / Pack order activity found for the selected range.</div>';
+    return;
+  }
+
+  const groups={};
+  rows.forEach(r=>(groups[r.date]??=[]).push(r));
+
+  $('jobsTimeline').innerHTML=Object.entries(groups).map(([date,items])=>{
+    const dayStart=new Date(date+'T07:00:00');
+    const dayEnd=new Date(date+'T16:00:00');
+    const total=dayEnd-dayStart;
+
+    const orderRows=items.map(r=>{
+      const ps=r.pickStart,pe=r.pickEnd,ks=r.packStart,ke=r.packEnd;
+      const pickLeft=ps?Math.max(0,Math.min(100,(ps-dayStart)/total*100)):0;
+      const pickWidth=ps&&pe?Math.max(0,(pe-ps)/total*100):0;
+      const packLeft=ks?Math.max(0,Math.min(100,(ks-dayStart)/total*100)):0;
+      const packWidth=ks&&ke?Math.max(0,(ke-ks)/total*100):0;
+
+      return `<div class="timeline-order">
+        <div class="timeline-order-label">
+          <b>Order ${esc(r.jobNo)}</b>
+          <span>${esc(r.store||'')}</span>
+          <small>${n(r.pickUnits||0)} picked · ${n(r.packUnits||0)} packed</small>
+        </div>
+        <div class="timeline-track">
+          <div class="timeline-bar pick" style="left:${pickLeft}%;width:${Math.max(pickWidth,0.35)}%" title="Pick: ${timelineTime(ps)}–${timelineTime(pe)}">
+            <span>${timelineTime(ps)}–${timelineTime(pe)}</span>
+          </div>
+          <div class="timeline-bar pack" style="left:${packLeft}%;width:${Math.max(packWidth,0.35)}%" title="Pack: ${timelineTime(ks)}–${timelineTime(ke)}">
+            <span>${timelineTime(ks)}–${timelineTime(ke)}</span>
+          </div>
+        </div>
+        <div class="timeline-people">
+          <div><b>Pick</b> ${esc(r.pickUsers.join(', ')||'—')}</div>
+          <div><b>Pack</b> ${esc(r.packUsers.join(', ')||'—')}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="card order-day-card">
+      <div class="timeline-day-head">
+        <div><h2 style="margin:0">${esc(date)}</h2><span class="sub">${items.length} orders</span></div>
+        <div class="timeline-legend"><span><i class="timeline-dot pickdot"></i> Picking</span><span><i class="timeline-dot packdot"></i> Packing</span></div>
+      </div>
+      <div class="timeline-scale"><span>07:00</span><span>08:00</span><span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span><span>14:00</span><span>15:00</span><span>16:00</span></div>
+      <div>${orderRows}</div>
+    </div>`;
+  }).join('');
+}
+
 async function jobsPage(){
- const start=$('jobsStartDate').value,end=$('jobsEndDate').value;
- if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
- const j=(await Promise.all(dateRangeDays(start,end).map(d=>jobsFor(d,$('jobsStore').value)))).flat();
- $('jobsTable').innerHTML='<thead><tr><th>Date</th><th>Store</th><th>Job / Order</th><th>Pick Users</th><th>Pack Users</th><th>Total Pick Units</th><th>Total Pack Units</th><th>Pick Contribution Detail</th><th>Pack Contribution Detail</th><th>Completed</th></tr></thead><tbody>'+j.map(x=>`<tr><td>${esc(x.date||'')}</td><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc((x.pickContributors||[]).join(', ')||'—')}</td><td>${esc((x.packContributors||[]).join(', ')||'—')}</td><td>${n(x.pickUnits)}</td><td>${n(x.packUnits)}</td><td style="white-space:normal">${Object.entries(x.pickMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td style="white-space:normal">${Object.entries(x.packMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td>${x.complete?.toDate?x.complete.toDate().toLocaleTimeString():''}</td></tr>`).join('')+'</tbody>'
+  const start=$('jobsStartDate').value,end=$('jobsEndDate').value;
+  if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
+  const days=dateRangeDays(start,end),store=$('jobsStore').value;
+  const j=(await Promise.all(days.map(d=>jobsFor(d,store)))).flat();
+  const events=await eventsForDays(days);
+  const visualRows=visualOrderTimeline(events,j);
+
+  // Keep the existing Jobs / Orders table, but add the visual timeline above it on the same page.
+  renderDailyOrderTimeline(visualRows);
+
+  $('jobsTable').innerHTML='<thead><tr><th>Date</th><th>Store</th><th>Job / Order</th><th>Pick Users</th><th>Pack Users</th><th>Total Pick Units</th><th>Total Pack Units</th><th>Pick Contribution Detail</th><th>Pack Contribution Detail</th><th>Completed</th></tr></thead><tbody>'+j.map(x=>`<tr><td>${esc(x.date||'')}</td><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc((x.pickContributors||[]).join(', ')||'—')}</td><td>${esc((x.packContributors||[]).join(', ')||'—')}</td><td>${n(x.pickUnits)}</td><td>${n(x.packUnits)}</td><td style="white-space:normal">${Object.entries(x.pickMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td style="white-space:normal">${Object.entries(x.packMetrics||{}).map(([u,m])=>`<b>${esc(u)}</b>: ${n(m.units)} units${m.minutes?` / ${minutes(m.minutes)} / ${m.rate.toFixed(2)} u/min`:' / rate not measurable'}`).join('<br>')||'—'}</td><td>${x.complete?.toDate?x.complete.toDate().toLocaleTimeString():''}</td></tr>`).join('')+'</tbody>'
 }
 async function gapsPage(){
  const start=$('gapsStartDate').value,end=$('gapsEndDate').value,t=Number($('threshold').value);
