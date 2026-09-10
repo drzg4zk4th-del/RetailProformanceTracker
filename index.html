@@ -870,7 +870,7 @@ function renderDailyOrderTimeline(rows){
   const groups={};
   rows.forEach(r=>(groups[r.date]??=[]).push(r));
 
-  $('jobsTimeline').innerHTML=`<div class="timeline-export-head"><div><b>Daily Order Flow Timeline</b><span class="sub">Pick and Pack start-to-finish by order</span></div><button class="primary" onclick="exportOrderTimelineImage()">Export Timeline Image</button></div>` + Object.entries(groups).map(([date,items])=>{ 
+  $('jobsTimeline').innerHTML=`<div class="timeline-export-head"><div><b>Daily Order Flow Timeline</b><span class="sub">Pick and Pack start-to-finish by order</span></div><button class="primary" onclick="exportOrderTimelinePDF()">Export Timeline PDF</button></div>` + Object.entries(groups).map(([date,items])=>{ 
     const dayStart=new Date(date+'T07:00:00');
     const dayEnd=new Date(date+'T16:00:00');
     const total=dayEnd-dayStart;
@@ -914,23 +914,36 @@ function renderDailyOrderTimeline(rows){
   }).join('');
 }
 
-async function exportOrderTimelineImage(){
+async function exportOrderTimelinePDF(){
   const el=$('jobsTimeline');
   if(!el || !el.querySelector('.order-day-card')){alert('Load a date range with order activity first.');return;}
-  if(typeof html2canvas==='undefined'){alert('Image export library is not available. Please refresh the page and try again.');return;}
+  if(typeof html2pdf==='undefined'){alert('PDF export library is not available. Please refresh the page and try again.');return;}
   const btn=el.querySelector('.timeline-export-head button');
   const oldText=btn?.textContent;
   try{
-    if(btn){btn.disabled=true;btn.textContent='Creating Image...';}
-    const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#0f172a',logging:false,windowWidth:el.scrollWidth+40,windowHeight:el.scrollHeight+40});
-    const link=document.createElement('a');
+    if(btn){btn.disabled=true;btn.textContent='Creating PDF...';}
     const start=$('jobsStartDate')?.value||'timeline';
     const end=$('jobsEndDate')?.value||start;
-    link.download=`Billini_Order_Timeline_${start}_to_${end}.png`;
-    link.href=canvas.toDataURL('image/png');
-    link.click();
-  }catch(e){console.error('Timeline image export failed',e);alert('Could not export the timeline image: '+e.message)}
-  finally{if(btn){btn.disabled=false;btn.textContent=oldText||'Export Timeline Image';}}
+    const filename=`Billini_Order_Timeline_${start}_to_${end}.pdf`;
+    await html2pdf().set({
+      margin:[8,8,8,8],
+      filename,
+      image:{type:'jpeg',quality:0.95},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#0f172a',logging:false},
+      jsPDF:{unit:'mm',format:'a4',orientation:'landscape',compress:true},
+      pagebreak:{mode:['css','legacy'],avoid:['.order-day-card','.timeline-order']}
+    }).from(el).toPdf().get('pdf').then(pdf=>{
+      // Keep the timeline readable across pages while preserving the existing dark dashboard styling.
+      const pages=pdf.internal.getNumberOfPages();
+      for(let i=1;i<=pages;i++){
+        pdf.setPage(i);
+        pdf.setFontSize(7);
+        pdf.setTextColor(148,163,184);
+        pdf.text(`Billini Order Flow Timeline  |  ${start} to ${end}  |  Page ${i} of ${pages}`,8,202);
+      }
+    }).save();
+  }catch(e){console.error('Timeline PDF export failed',e);alert('Could not export the timeline PDF: '+e.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent=oldText||'Export Timeline PDF';}}
 }
 
 async function jobsPage(){
