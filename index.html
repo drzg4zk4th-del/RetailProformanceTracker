@@ -676,20 +676,21 @@ async function gapsFor(day,t=10,includeCancelled=false){
  const decisions=await loadGapDecisions(out);
  return out.filter(g=>includeCancelled||decisions[gapKey(g)]?.status!=='cancelled').map(g=>({...g,decision:decisions[gapKey(g)]?.status||'active'}));
 }
-async function gapsForDays(days,t=10){
+async function gapsForDays(days,t=10,includeCancelled=false){
  if(!days.length)return [];
  if(days.length>30)throw Error('Please select a range of 30 days or less.');
  const out=[],seen=new Set();
+
+ // Use the same gap loading and decision logic as the Gaps page.
+ // By default, only gaps that have NOT been manually cancelled are returned.
  for(const day of days){
-  const s=await db.collection(C.gaps).where('date','==',day).get();
-  s.docs.forEach(d=>{
-   const x=d.data(),arr=Array.isArray(x.gaps)?x.gaps:[x];
-   arr.forEach(g=>{
-    if((g.minutes||0)>t){
-     const key=d.id+'_'+(g.jobNo||'')+'_'+(g.user||'')+'_'+(g.minutes||0)+'_'+(g.to?.seconds||g.to||'');
-     if(!seen.has(key)){seen.add(key);out.push({...g,date:g.date||day});}
-    }
-   });
+  const dayGaps=await gapsFor(day,t,includeCancelled);
+  dayGaps.forEach(g=>{
+   const key=gapKey(g);
+   if(!seen.has(key)){
+    seen.add(key);
+    out.push(g);
+   }
   });
  }
  return out;
@@ -854,7 +855,6 @@ async function reconciliationPage(){
 
 async function eventsForDays(days){
   if(!days.length)return [];
-  if(days.length>30)throw Error('Please select a range of 30 days or less.');
   const out=[],seen=new Set();
   try{
     const s=await db.collection(C.events).where('dates','array-contains-any',days).get();
@@ -1581,13 +1581,82 @@ async function loadTrendJobs(){
   });
 }
 
-function trendContributors(j,role){
+function trendGapAdjustments(j,name,cancelledGaps=[]){
+  const pick=j.pickMetrics?.[name]||{}, pack=j.packMetrics?.[name]||{};
+  const ps=gapTimestampMs(pick.first), pe=gapTimestampMs(pick.last);
+  const ks=gapTimestampMs(pack.first), ke=gapTimestampMs(pack.last);
+  let pickMinutes=0,packMinutes=0,totalMinutes=0;
+  const used=new Set();
+  (cancelledGaps||[]).forEach(g=>{
+    if(g.decision!=='cancelled')return;
+    if(String(g.fileId||'')!==String(j.fileId||''))return;
+    if(String(g.jobNo||'')!==String(j.jobNo||''))return;
+    if(String(g.user||'').trim()!==String(name||'').trim())return;
+    const from=gapTimestampMs(g.from),to=gapTimestampMs(g.to),mins=Number(g.minutes)||0;
+    if(!from||!to||mins<=0)return;
+    const key=gapKey(g);
+    if(used.has(key))return;
+    used.add(key);
+    const inPick=ps>0&&pe>0&&from>=ps&&to<=pe;
+    const inPack=ks>0&&ke>0&&from>=ks&&to<=ke;
+    totalMinutes+=mins;
+    // Attribute a cancelled gap to a role only when both ends fall inside
+    // that role's own first-to-last span. Cross-role gaps are removed once
+    // from the person's overall time but are not forced into Pick or Pack.
+    if(inPick&&!inPack)pickMinutes+=mins;
+    else if(inPack&&!inPick)packMinutes+=mins;
+  });
+  return {pickMinutes,packMinutes,totalMinutes};
+}
+
+function trendGapAdjustments(j,name,cancelledGaps=[]){
+  const pick=j.pickMetrics?.[name]||{};
+  const pack=j.packMetrics?.[name]||{};
+  const ps=gapTimestampMs(pick.first), pe=gapTimestampMs(pick.last);
+  const ks=gapTimestampMs(pack.first), ke=gapTimestampMs(pack.last);
+  let pickMinutes=0,packMinutes=0,crossMinutes=0;
+  const used=new Set();
+
+  (cancelledGaps||[]).forEach(g=>{
+    if(g.decision!=='cancelled')return;
+    if(String(g.fileId||'')!==String(j.fileId||''))return;
+    if(String(g.jobNo||'')!==String(j.jobNo||''))return;
+    if(String(g.user||'').trim()!==String(name||'').trim())return;
+
+    const from=gapTimestampMs(g.from);
+    const to=gapTimestampMs(g.to);
+    const mins=Number(g.minutes)||0;
+    if(!from||!to||mins<=0)return;
+
+    const key=gapKey(g);
+    if(used.has(key))return;
+    used.add(key);
+
+    const inPick=ps>0&&pe>0&&from>=ps&&to<=pe;
+    const inPack=ks>0&&ke>0&&from>=ks&&to<=ke;
+
+    if(inPick&&!inPack)pickMinutes+=mins;
+    else if(inPack&&!inPick)packMinutes+=mins;
+    else crossMinutes+=mins;
+  });
+
+  return {pickMinutes,packMinutes,crossMinutes};
+}
+
+function trendContributors(j,role,cancelledGaps=[]){
   const metrics=role==='pick'?(j.pickMetrics||{}):(j.packMetrics||{});
-  return Object.entries(metrics).map(([name,m])=>({
-    name,
-    units:Number(m.units)||0,
-    minutes:Number(m.minutes)||0
-  })).filter(x=>x.name);
+
+  return Object.entries(metrics).map(([name,m])=>{
+    const adj=trendGapAdjustments(j,name,cancelledGaps);
+    const excluded=role==='pick'?adj.pickMinutes:adj.packMinutes;
+
+    return {
+      name,
+      units:Number(m.units)||0,
+      minutes:Math.max(0,(Number(m.minutes)||0)-excluded),
+      cancelledCrossMinutes:adj.crossMinutes
+    };
+  }).filter(x=>x.name);
 }
 
 async function populateTrendPeople(){
@@ -1763,29 +1832,51 @@ async function trendsPage(){
 
   try{
     const jobs=await loadTrendJobs();
+    const days=dateRangeDays(start,end);
+    // Load only active (not cancelled) gaps. A cancelled gap therefore
+    // removes its duration from Trends processing-time calculations.
+    const cancelledGaps=await gapsForDays(days,10,true);
     const rows=[];
 
     jobs.forEach(j=>{
       const date=j.date;
       if(!date||date<start||date>end)return;
 
-      const pick=trendContributors(j,'pick');
-      const pack=trendContributors(j,'pack');
+      const pick=trendContributors(j,'pick',cancelledGaps);
+      const pack=trendContributors(j,'pack',cancelledGaps);
 
       if(selectedPerson){
-        const p=pick.find(x=>x.name===selectedPerson)||{units:0,minutes:0};
-        const k=pack.find(x=>x.name===selectedPerson)||{units:0,minutes:0};
+        const p=pick.find(x=>x.name===selectedPerson)||{units:0,minutes:0,cancelledCrossMinutes:0};
+        const k=pack.find(x=>x.name===selectedPerson)||{units:0,minutes:0,cancelledCrossMinutes:0};
+
         rows.push({
-          date, user:selectedPerson,
+          date,
+          user:selectedPerson,
           pick:{units:p.units,minutes:p.minutes},
-          pack:{units:k.units,minutes:k.minutes}
+          pack:{units:k.units,minutes:k.minutes},
+          cancelledCrossMinutes:p.cancelledCrossMinutes||0
         });
       }else{
+        const names=new Set([...pick.map(x=>x.name),...pack.map(x=>x.name)]);
+        let cross=0;
+
+        names.forEach(name=>{
+          const p=pick.find(x=>x.name===name);
+          cross+=p?.cancelledCrossMinutes||0;
+        });
+
         rows.push({
           date,
           user:'',
-          pick:{units:pick.reduce((s,x)=>s+x.units,0),minutes:pick.reduce((s,x)=>s+x.minutes,0)},
-          pack:{units:pack.reduce((s,x)=>s+x.units,0),minutes:pack.reduce((s,x)=>s+x.minutes,0)}
+          pick:{
+            units:pick.reduce((s,x)=>s+x.units,0),
+            minutes:pick.reduce((s,x)=>s+x.minutes,0)
+          },
+          pack:{
+            units:pack.reduce((s,x)=>s+x.units,0),
+            minutes:pack.reduce((s,x)=>s+x.minutes,0)
+          },
+          cancelledCrossMinutes:cross
         });
       }
     });
@@ -1804,6 +1895,7 @@ async function trendsPage(){
       grouped[key].pickMinutes+=r.pick.minutes;
       grouped[key].packUnits+=r.pack.units;
       grouped[key].packMinutes+=r.pack.minutes;
+       grouped[key].cancelledCrossMinutes+=r.cancelledCrossMinutes||0;
     });
 
     const trendRows=Object.values(grouped).sort((a,b)=>a.key.localeCompare(b.key));
@@ -1811,7 +1903,7 @@ async function trendsPage(){
       r.pickRate=r.pickMinutes>0?r.pickUnits/r.pickMinutes:0;
       r.packRate=r.packMinutes>0?r.packUnits/r.packMinutes:0;
       r.totalUnits=r.pickUnits+r.packUnits;
-      r.totalMinutes=r.pickMinutes+r.packMinutes;
+      r.totalMinutes=Math.max(0,r.pickMinutes+r.packMinutes-(r.cancelledCrossMinutes||0));
       r.pickWoW=i>0&&trendRows[i-1].pickRate>0?((r.pickRate-trendRows[i-1].pickRate)/trendRows[i-1].pickRate)*100:null;
       r.packWoW=i>0&&trendRows[i-1].packRate>0?((r.packRate-trendRows[i-1].packRate)/trendRows[i-1].packRate)*100:null;
       r.unitsChange=i>0&&trendRows[i-1].totalUnits>0?((r.totalUnits-trendRows[i-1].totalUnits)/trendRows[i-1].totalUnits)*100:null;
@@ -1892,8 +1984,8 @@ async function trendsPage(){
       const date=j.date;
       if(!date||date<start||date>end)return;
 
-      const pick=trendContributors(j,'pick');
-      const pack=trendContributors(j,'pack');
+      const pick=trendContributors(j,'pick',cancelledGaps);
+      const pack=trendContributors(j,'pack',cancelledGaps);
 
       if(selectedPerson){
         const p=pick.find(x=>x.name===selectedPerson)||{units:0,minutes:0};
@@ -2081,24 +2173,32 @@ function renderTrendPeople(rows){
 
   const people={};
   rows.forEach(r=>{
-    const add=(name,pick,pack)=>{
-      if(!name) return;
-      if(!people[name]) people[name]={
+    const add=(name,pick,pack,crossMinutes=0)=>{
+      if(!name)return;
+      if(!people[name])people[name]={
         name,
         pickUnits:0,pickMinutes:0,
-        packUnits:0,packMinutes:0
+        packUnits:0,packMinutes:0,
+        cancelledCrossMinutes:0
       };
       people[name].pickUnits+=pick.units||0;
       people[name].pickMinutes+=pick.minutes||0;
       people[name].packUnits+=pack.units||0;
       people[name].packMinutes+=pack.minutes||0;
+      people[name].cancelledCrossMinutes+=crossMinutes||0;
     };
-    add(r.user||r.username||r.person||'', r.pick||{}, r.pack||{});
+
+    add(
+      r.user||r.username||r.person||'',
+      r.pick||{},
+      r.pack||{},
+      r.cancelledCrossMinutes||0
+    );
   });
 
   const list=Object.values(people).map(x=>{
     x.totalUnits=x.pickUnits+x.packUnits;
-    x.totalMinutes=x.pickMinutes+x.packMinutes;
+    x.totalMinutes=Math.max(0,x.pickMinutes+x.packMinutes-(x.cancelledCrossMinutes||0));
     x.unitsMinute=x.totalMinutes>0 ? x.totalUnits/x.totalMinutes : null;
     return x;
   }).sort((a,b)=>b.totalUnits-a.totalUnits);
