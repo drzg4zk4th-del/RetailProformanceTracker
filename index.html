@@ -94,7 +94,7 @@
   <div class="tablewrap"><table id="reconTable"></table></div>
 </div>
 </section>
-<section id="gaps" class="page"><div class="card toolbar"><label>Start Date<input type="date" id="gapsStartDate"></label><label>End Date<input type="date" id="gapsEndDate"></label><label>Threshold<select id="threshold"><option value="10">Greater than 10 min</option><option value="20">Greater than 20 min</option></select></label><button class="primary" onclick="gapsPage()">Load Range</button></div><div class="card"><div class="tablewrap"><table id="gapsTable"></table></div></div></section>
+<section id="gaps" class="page"><div class="card toolbar"><label>Start Date<input type="date" id="gapsStartDate"></label><label>End Date<input type="date" id="gapsEndDate"></label><label>Threshold<select id="threshold"><option value="10">Greater than 10 min</option><option value="20">Greater than 20 min</option></select></label><button class="primary" onclick="gapsPage()">Load Range</button></div><div class="card"><div id="gapsSummary" class="sub" style="margin-bottom:12px"></div><div class="tablewrap"><table id="gapsTable"></table></div></div></section>
 <section id="wms" class="page">
 <div class="card toolbar">
   <label>Start Date<input type="date" id="wmsStartDate"></label>
@@ -241,7 +241,7 @@ messagingSenderId: "1016653351453",
 appId: "1:1016653351453:web:a2a1f597844adf51ba54f4"
 };
 firebase.initializeApp(firebaseConfig);const db=firebase.firestore();
-const C={jobs:"pickPackJobs",events:"pickPackEvents",gaps:"pickPackGaps",imports:"pickPackImports",snapshots:"pickPackSnapshots",people:"pickPackPeople",wms:"pickPackWmsEvents",wmsImports:"pickPackWmsImports"};let selected=[],people={};
+const C={jobs:"pickPackJobs",events:"pickPackEvents",gaps:"pickPackGaps",gapDecisions:"pickPackGapDecisions",imports:"pickPackImports",snapshots:"pickPackSnapshots",people:"pickPackPeople",wms:"pickPackWmsEvents",wmsImports:"pickPackWmsImports"};let selected=[],people={};
 const $=id=>document.getElementById(id);function page(id){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');if(id==='imports')importLog();if(id==='people')rolesPage();if(id==='wms')wmsInit();if(id==='staffing')staffingInit();if(id==='trends')trendsInit()}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}function n(v){return Number(v||0).toLocaleString()}function minutes(x){if(x==null||!isFinite(x))return'—';let h=Math.floor(x/60),m=Math.round(x%60);return h?h+'h '+String(m).padStart(2,'0')+'m':m+'m'}function dk(d){let x=d instanceof Date?d:new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')}function rate(u,t){return t>0?u/t:null}
 function storeName(name){return name.replace(/\.[^.]+$/,'').replace(/^Shipping\s*-\s*Job Management\s*-\s*Job History\s*/i,'').trim()||'Unknown Store'}
@@ -625,11 +625,57 @@ async function jobsForDays(days,store=''){
  return out;
 }
 
-async function gapsFor(day,t=10){
- const s=await db.collection(C.gaps).where('date','==',day).get(),out=[];
- s.docs.forEach(d=>{const x=d.data();if(Array.isArray(x.gaps))x.gaps.forEach(g=>{if(g.minutes>t)out.push({...g})});else if((x.minutes||0)>t)out.push(x)});return out;
+function gapTimestampMs(v){
+ if(!v)return 0;
+ if(typeof v.toMillis==='function')return v.toMillis();
+ if(typeof v.toDate==='function')return v.toDate().getTime();
+ const d=v instanceof Date?v:new Date(v);
+ return isNaN(d.getTime())?0:d.getTime();
 }
-
+function gapKey(g){return [g.fileId||'',g.store||'',g.jobNo||'',g.user||'',gapTimestampMs(g.from),gapTimestampMs(g.to)].join('|')}
+function gapIsOvernight(g){const f=gapTimestampMs(g.from),t=gapTimestampMs(g.to);return f&&t?dk(new Date(f))!==dk(new Date(t)):false}
+function gapDecisionDocId(key){return encodeURIComponent(key)}
+async function loadGapDecisions(gaps){
+ // Decisions are optional. If the decisions collection is unavailable or a read fails,
+ // return an empty map so the original gap data is still displayed and counted.
+ const map={},keys=[...new Set(gaps.map(g=>gapKey(g)))];
+ if(!keys.length)return map;
+ try{
+  for(let i=0;i<keys.length;i+=30){
+   const batch=keys.slice(i,i+30);
+   const docs=await Promise.all(batch.map(async key=>{
+    try{return await db.collection(C.gapDecisions).doc(gapDecisionDocId(key)).get()}
+    catch(e){console.warn('Gap decision read failed',e);return null}
+   }));
+   docs.forEach(d=>{if(d?.exists){const x=d.data();if(x.gapKey)map[x.gapKey]=x;}});
+  }
+ }catch(e){console.warn('Gap decisions unavailable; showing all gaps as active',e)}
+ return map;
+}
+async function setGapDecision(key,status){
+ try{
+  await db.collection(C.gapDecisions).doc(gapDecisionDocId(key)).set({gapKey:key,status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  await gapsPage();
+ }catch(e){console.error('Gap decision save failed',e);alert('Could not save gap decision: '+e.message)}
+}
+async function gapsFor(day,t=10,includeCancelled=false){
+ const out=[],seen=new Set();
+ // Gap chunks contain a `dates` array, while older chunks may only have a single `date` field.
+ // Read both formats so the page does not depend on which chunk happened to contain the first gap.
+ const addSnap=s=>s.docs.forEach(d=>{
+  const x=d.data(),arr=Array.isArray(x.gaps)?x.gaps:[x];
+  arr.forEach(g=>{
+   if((g.minutes||0)>t){
+    const key=gapKey(g)||(`${d.id}_${g.jobNo||''}_${g.user||''}_${g.minutes||0}_${gapTimestampMs(g.to)}`);
+    if(!seen.has(key)){seen.add(key);out.push({...g,date:g.date||day});}
+   }
+  });
+ });
+ try{addSnap(await db.collection(C.gaps).where('dates','array-contains',day).get())}catch(e){console.warn('Gap dates index unavailable',e)}
+ try{addSnap(await db.collection(C.gaps).where('date','==',day).get())}catch(e){console.warn('Legacy gap date index unavailable',e)}
+ const decisions=await loadGapDecisions(out);
+ return out.filter(g=>includeCancelled||decisions[gapKey(g)]?.status!=='cancelled').map(g=>({...g,decision:decisions[gapKey(g)]?.status||'active'}));
+}
 async function gapsForDays(days,t=10){
  if(!days.length)return [];
  if(days.length>30)throw Error('Please select a range of 30 days or less.');
@@ -1067,13 +1113,26 @@ async function jobsPage(){
 }
 async function gapsPage(){
  const start=$('gapsStartDate').value,end=$('gapsEndDate').value,t=Number($('threshold').value);
- if(!start||!end)return;if(end<start){alert('End Date cannot be before Start Date.');return;}
- const g=(await Promise.all(dateRangeDays(start,end).map(d=>gapsFor(d,t)))).flat();
- $('gapsTable').innerHTML='<thead><tr><th>Date</th><th>Store</th><th>Job / Order</th><th>Person</th><th>Gap</th><th>From</th><th>To</th><th>From Activity</th><th>To Activity</th><th>From Detail</th><th>To Detail</th></tr></thead><tbody>'+g.sort((a,b)=>b.minutes-a.minutes).map(x=>`<tr><td>${esc(x.date||'')}</td><td>${esc(x.store)}</td><td><b>${esc(x.jobNo)}</b></td><td>${esc(x.user)}</td><td class="${x.minutes>20?'bad':'warn'}">${minutes(x.minutes)}</td><td>${x.from?.toDate?x.from.toDate().toLocaleTimeString():''}</td><td>${x.to?.toDate?x.to.toDate().toLocaleTimeString():''}</td><td>${esc(x.fromAction)}</td><td>${esc(x.toAction)}</td><td>${esc(x.fromMessage)}</td><td>${esc(x.toMessage)}</td></tr>`).join('')+'</tbody>'
+ if(!start||!end)return;
+ if(end<start){alert('End Date cannot be before Start Date.');return;}
+ try{
+  const g=(await Promise.all(dateRangeDays(start,end).map(d=>gapsFor(d,t,true)))).flat();
+  const active=g.filter(x=>x.decision!=='cancelled').length;
+  const cancelled=g.filter(x=>x.decision==='cancelled').length;
+  const overnight=g.filter(x=>gapIsOvernight(x)).length;
+  $('gapsSummary').innerHTML=`<b>${n(active)}</b> counted • <b>${n(cancelled)}</b> cancelled/excluded • <b>${n(overnight)}</b> cross-midnight candidates. <span class="sub">All gaps are counted by default. Only gaps you manually set to <b>Cancel / exclude</b> are excluded from reporting.</span>`;
+  $('gapsTable').innerHTML='<thead><tr><th>Date</th><th>Store</th><th>Job / Order</th><th>Person</th><th>Gap</th><th>Status</th><th>From</th><th>To</th><th>From Activity</th><th>To Activity</th><th>From Detail</th><th>To Detail</th></tr></thead><tbody>'+g.sort((a,b)=>(b.minutes||0)-(a.minutes||0)).map(x=>{
+   const overnightFlag=gapIsOvernight(x),status=x.decision==='cancelled'?'cancelled':'active';
+   return `<tr style="${status==='cancelled'?'opacity:.55':''}"><td>${esc(x.date||'')}</td><td>${esc(x.store||'')}</td><td><b>${esc(x.jobNo||'')}</b></td><td>${esc(x.user||'')}</td><td class="${x.minutes>20?'bad':'warn'}">${minutes(x.minutes)}</td><td>${overnightFlag?'<span class="pill">Overnight candidate</span> ':''}<select onchange="setGapDecision(decodeURIComponent(this.dataset.key),this.value)" data-key="${encodeURIComponent(gapKey(x))}"><option value="active" ${status==='active'?'selected':''}>Count gap</option><option value="cancelled" ${status==='cancelled'?'selected':''}>Cancel / exclude</option></select></td><td>${x.from?.toDate?x.from.toDate().toLocaleString():''}</td><td>${x.to?.toDate?x.to.toDate().toLocaleString():''}</td><td>${esc(x.fromAction||'')}</td><td>${esc(x.toAction||'')}</td><td>${esc(x.fromMessage||'')}</td><td>${esc(x.toMessage||'')}</td></tr>`;
+  }).join('')+'</tbody>';
+ }catch(e){
+  console.error('Gaps page failed',e);
+  alert('Could not load gaps: '+e.message);
+ }
 }
 async function clearPickPackData(){
  if(!confirm("CLEAR ALL Pick/Pack data from Firebase?\n\nThis deletes only Pick/Pack events, jobs, gaps, import history and saved snapshots. People/Roles and all other Firebase collections are kept.\n\nThis cannot be undone."))return;
- try{$('status').textContent='Clearing Firebase data...';let total=0;for(const name of [C.events,C.jobs,C.gaps,C.imports,C.snapshots,C.wms,C.wmsImports]){const snap=await db.collection(name).get();const ops=snap.docs.map(d=>b=>b.delete(d.ref));total+=ops.length;await commitChunks(ops)}alert('Pick/Pack data cleared.\n\n'+n(total)+' documents deleted.');await init()}catch(e){console.error(e);alert('Clear failed: '+e.message)}}
+ try{$('status').textContent='Clearing Firebase data...';let total=0;for(const name of [C.events,C.jobs,C.gaps,C.gapDecisions,C.imports,C.snapshots,C.wms,C.wmsImports]){const snap=await db.collection(name).get();const ops=snap.docs.map(d=>b=>b.delete(d.ref));total+=ops.length;await commitChunks(ops)}alert('Pick/Pack data cleared.\n\n'+n(total)+' documents deleted.');await init()}catch(e){console.error(e);alert('Clear failed: '+e.message)}}
 
 
 function exportMetricCards(containerId){
