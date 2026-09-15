@@ -204,6 +204,8 @@
   <label>Group By<select id="trendGroup"><option value="day">Day</option><option value="week" selected>Week</option><option value="month">Month</option></select></label>
   <label>Person<select id="trendPerson"><option value="">Whole Team</option></select></label>
   <button class="primary" onclick="trendsPage()">Refresh Trends</button>
+  <button class="primary" onclick="exportTrendsExcel()">Export Trends Excel</button>
+  <span class="export-note">Exports the selected Trends range as its own comparison file.</span>
 </div>
 <div id="trendMetrics" class="grid"></div>
 <div class="grid">
@@ -1541,6 +1543,148 @@ async function populateTrendPeople(){
   sel.innerHTML='<option value="">Whole Team</option>'+
     [...names].sort((a,b)=>a.localeCompare(b)).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   if([...sel.options].some(o=>o.value===current))sel.value=current;
+}
+
+
+function trendTableToAOA(tableId){
+  const table=$(tableId);
+  if(!table)return [];
+  return [...table.querySelectorAll('tr')].map(tr=>
+    [...tr.querySelectorAll('th,td')].map(td=>td.innerText.replace(/\s+/g,' ').trim())
+  ).filter(r=>r.some(Boolean));
+}
+
+function trendElementTextToAOA(id){
+  const el=$(id);
+  if(!el)return [];
+  return el.innerText.split(/\n+/).map(x=>[x.trim()]).filter(x=>x[0]);
+}
+
+function addTrendSheet(wb,name,aoa){
+  if(aoa && aoa.length){
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),name.slice(0,31));
+  }
+}
+
+function autoFitTrendSheet(ws){
+  const range=ws['!ref'];
+  if(!range)return;
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  const widths=[];
+  rows.forEach(row=>row.forEach((v,i)=>{
+    widths[i]=Math.min(45,Math.max(widths[i]||10,String(v??'').length+2));
+  }));
+  ws['!cols']=widths.map(w=>({wch:w}));
+}
+
+async function exportTrendsExcel(){
+  try{
+    // Make sure the export matches exactly what is currently selected.
+    await trendsPage();
+
+    const start=$('trendStartDate')?.value||'';
+    const end=$('trendEndDate')?.value||'';
+    const group=$('trendGroup')?.value||'week';
+    const person=$('trendPerson')?.value||'Whole Team';
+
+    if(!start||!end){
+      alert('Select a Trends start and end date first.');
+      return;
+    }
+
+    const wb=XLSX.utils.book_new();
+    const period=start===end?start:(start+' to '+end);
+
+    // 1. Summary metrics
+    const summary=[
+      ['Billini Performance Trends'],
+      ['Trend Period',period],
+      ['Group By',group],
+      ['Person',person],
+      [],
+      ['Metric','Value'],
+      ...exportMetricCards('trendMetrics')
+    ];
+    addTrendSheet(wb,'Trend Summary',summary);
+
+    // 2. Period-by-period trend detail
+    addTrendSheet(wb,'Trend Detail',trendTableToAOA('trendTable'));
+
+    // 3. People overview
+    addTrendSheet(wb,'People Overview',trendTableToAOA('trendPeopleTable'));
+
+    // 4. Report cards as a comparison-friendly table.
+    // Pull the visible report-card values into rows rather than exporting HTML.
+    const reportRows=[['Person','Grade','Assessment','Total Units','Units / Minute','Total Processing Time',
+      'Pick Units','Pick Processing Time','Pick Unit Share','Pick Time Share',
+      'Pack Units','Pack Processing Time','Pack Unit Share','Pack Time Share',
+      'Overall Unit Share','Overall Time Share','Unit vs Time Gap']];
+    document.querySelectorAll('#trendReportCards > .card').forEach(card=>{
+      const name=card.querySelector('h2')?.innerText.trim()||'';
+      const grade=card.querySelector('.pill')?.innerText.trim()||'';
+      const pills=[...card.querySelectorAll('.pill')].map(x=>x.innerText.trim());
+      const assessment=pills[1]||'';
+
+      const metrics=[...card.querySelectorAll('.metric')].map(x=>x.innerText.split('\n').map(s=>s.trim()));
+      const metricMap={};
+      metrics.forEach(m=>{if(m[0])metricMap[m[0]]=m[1]||'';});
+
+      const tables=[...card.querySelectorAll('table')];
+      const getTableValue=(tableIndex,label)=>{
+        const tr=[...tables[tableIndex]?.querySelectorAll('tr')||[]]
+          .find(x=>(x.querySelector('td')?.innerText.trim()||'')===label);
+        return tr?.querySelectorAll('td')[1]?.innerText.trim()||'';
+      };
+
+      const overall=card.querySelector('div[style*="border:1px solid #334155"]')?.innerText||'';
+      const shareMatch=overall.match(/Unit share\s+([0-9.]+%)\s+vs time share\s+([0-9.]+%)/i);
+      const gapMatch=overall.match(/([+-]?[0-9.]+)\s+percentage points/i);
+
+      reportRows.push([
+        name,grade,assessment,
+        metricMap['Total Units']||'',
+        metricMap['Units / Minute']||'',
+        metricMap['Total Processing Time']||'',
+        getTableValue(0,'Units'),
+        getTableValue(0,'Processing Time'),
+        getTableValue(0,'Unit Share'),
+        getTableValue(0,'Time Share'),
+        getTableValue(1,'Units'),
+        getTableValue(1,'Processing Time'),
+        getTableValue(1,'Unit Share'),
+        getTableValue(1,'Time Share'),
+        shareMatch?.[1]||'',
+        shareMatch?.[2]||'',
+        gapMatch?.[1]||''
+      ]);
+    });
+    addTrendSheet(wb,'Report Cards',reportRows);
+
+    // 5. Chart data so weeks can be compared numerically in Excel.
+    const detail=trendTableToAOA('trendTable');
+    if(detail.length){
+      const chartData=[['Period','Pick Rate (u/min)','Pack Rate (u/min)','Total Units','Pick Units','Pack Units']];
+      detail.slice(1).forEach(r=>{
+        if(r.length>=10){
+          chartData.push([r[0],r[3],r[7],r[9],r[1],r[5]]);
+        }
+      });
+      addTrendSheet(wb,'Chart Data',chartData);
+    }
+
+    wb.SheetNames.forEach(name=>autoFitTrendSheet(wb.Sheets[name]));
+
+    // One file per selected Trends range. This makes week-to-week comparison simple.
+    const safePerson=(person||'Whole Team').replace(/[^\w.-]+/g,'_');
+    const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    XLSX.writeFile(
+      wb,
+      `Billini_Performance_Trends_${start}_${end}_${group}_${safePerson}_${stamp}.xlsx`
+    );
+  }catch(e){
+    console.error('Trends Excel export failed',e);
+    alert('Trends Excel export failed: '+e.message);
+  }
 }
 
 async function trendsPage(){
